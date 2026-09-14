@@ -1,0 +1,15 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+ <uses-permission android:name="android.permission.INTERNET"/>
+ <uses-permission android:name="android.permission.READ_CALENDAR"/>
+ <uses-permission android:name="android.permission.WRITE_CALENDAR"/>
+ <application android:name=".ScheduleApplication" android:icon="@drawable/ic_schedule" android:dataExtractionRules="@xml/data_extraction_rules" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:label="知序课表" android:allowBackup="false" android:fullBackupContent="false" android:usesCleartextTraffic="false" android:supportsRtl="true">
+  <activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+  <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.files" android:exported="false" android:grantUriPermissions="true"><meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths"/></provider>
+  <receiver android:name=".TodayWidget" android:exported="false" android:label="@string/widget_label" android:icon="@drawable/ic_schedule">
+   <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/><action android:name="android.intent.action.DATE_CHANGED"/><action android:name="android.intent.action.TIME_SET"/><action android:name="android.intent.action.TIMEZONE_CHANGED"/></intent-filter>
+   <meta-data android:name="android.appwidget.provider" android:resource="@xml/today_widget_info"/>
+  </receiver>
+  <service android:name=".TodayWidgetService" android:permission="android.permission.BIND_REMOTEVIEWS" android:exported="false"/>
+  <receiver android:name=".TodayWidgetLarge" android:exported="false" android:label="@string/widget_label" android:icon="@drawable/ic_schedule"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/><action android:name="android.intent.action.DATE_CHANGED"/><action android:name="android.intent.action.TIME_SET"/><action android:name="android.intent.action.TIMEZONE_CHANGED"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/today_widget_large_info"/></receiver>
+ </application>
+</manifest>

@@ -1,0 +1,5 @@
+<resources>
+ <string name="widget_label">知序 · 今日课表</string>
+ <string name="widget_description">3×3 尺寸 · 显示当前课表的当日课程、时间与地点</string>
+ <string name="widget_large_description">4×3 尺寸 · 显示当前课表的当日课程、时间与地点</string>
+</resources>

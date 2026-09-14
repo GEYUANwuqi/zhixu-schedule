@@ -1,0 +1,8 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="16dp" android:background="@drawable/widget_background">
+ <TextView android:id="@+id/widget_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="今日课表 · 2026-09-14" android:textSize="17sp" android:textStyle="bold" android:textColor="#293b2b"/>
+ <TextView android:id="@+id/widget_date" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone"/>
+ <TextView android:id="@+id/widget_subtitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="8dp" android:text="秋冬学期" android:textSize="12sp" android:textColor="#667161"/>
+ <include layout="@layout/widget_preview_row" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+ <include layout="@layout/widget_preview_row" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp"/>
+ <include layout="@layout/widget_preview_row" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp"/>
+</LinearLayout>

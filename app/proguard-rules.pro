@@ -1,0 +1,4 @@
+-keep class cn.edu.sycu.schedule.NativeCore { *; }
+-keep class cn.edu.sycu.schedule.BrowserHost { *; }
+-keep class cn.edu.sycu.schedule.SecretVault { *; }
+-keepclasseswithmembernames class * { native <methods>; }

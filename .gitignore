@@ -1,0 +1,22 @@
+/.gradle/
+/local.properties
+/**/build/
+/app/src/main/jniLibs/
+/dist/
+*.jks
+
+/build-*.log
+/emulator-check.log
+
+# Internal engineering material is kept outside the public history.
+/dev/
+/app/src/main/jniLibs/
+
+# Private CI inputs
+*.keystore
+*.pem
+*.p12
+*.log
+*.har
+*.jsonl
+.env*
