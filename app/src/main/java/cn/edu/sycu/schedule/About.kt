@@ -29,7 +29,7 @@ internal fun isNewerVersion(remote: String, local: String): Boolean {
     return false
 }
 
-internal data class ReleaseCheck(val message: String, val tag: String? = null)
+internal data class ReleaseCheck(val message: String, val tag: String? = null, val published: String = "", val notes: String = "", val download: String? = null)
 
 internal fun releaseResult(status: Int, body: String, current: String): ReleaseCheck {
     if (status == 404) return ReleaseCheck("暂未发布正式版本")
@@ -38,7 +38,11 @@ internal fun releaseResult(status: Int, body: String, current: String): ReleaseC
     val json = JSONObject(body)
     require(!json.getBoolean("prerelease") && !json.getBoolean("draft")) { "暂未找到可用的正式版本" }
     val tag = json.getString("tag_name")
-    return if (isNewerVersion(tag, current)) ReleaseCheck("发现新版本 ${tag.removePrefix("v")}", tag)
+    val expected = "$PROJECT_URL/releases/download/$tag/zhixu-${tag.removePrefix("v")}.apk"
+    val assets = json.optJSONArray("assets")
+    val download = (0 until (assets?.length() ?: 0)).map { assets!!.getJSONObject(it) }
+        .firstOrNull { it.optString("browser_download_url") == expected }?.optString("browser_download_url")
+    return if (isNewerVersion(tag, current)) ReleaseCheck("发现新版本", tag, json.optString("published_at"), json.optString("body").takeUnless { it == "null" }.orEmpty(), download)
         else ReleaseCheck("当前已是最新版本（$current）")
 }
 
@@ -50,6 +54,7 @@ private fun checkRelease(): ReleaseCheck {
         connection.instanceFollowRedirects = false
         connection.setRequestProperty("Accept", "application/vnd.github+json")
         connection.setRequestProperty("User-Agent", "Zhixu-Schedule/${BuildConfig.VERSION_NAME}")
+        connection.useCaches = false
         val status = connection.responseCode
         val body = if (status == 200) connection.inputStream.use { input ->
             val bytes = java.io.ByteArrayOutputStream()
@@ -103,9 +108,15 @@ fun AboutPage() {
             } finally { checking = false }
         }
     }) { Text(if (checking) "正在检查…" else "检查更新") }
+    var autoCheck by remember { mutableStateOf(SchedulePreferences(context).autoCheckUpdates) }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Text("启动时检查更新", Modifier.weight(1f))
+        Switch(autoCheck, { autoCheck = it; SchedulePreferences(context).autoCheckUpdates = it })
+    }
+    Text("开启后将在启动时检查是否为最新版本", style = MaterialTheme.typography.bodySmall)
     result?.let { r ->
-        Text(r.message)
-        r.tag?.let { tag -> TextButton(onClick = { open("$PROJECT_URL/releases/tag/$tag") }) { Text("前往下载新版本") } }
+        if (r.tag == null) Text(r.message)
+        else UpdateDialog(r) { result = null }
     }
     OutlinedButton(onClick = { open("$PROJECT_URL/issues") }) { Text("反馈问题") }
     notice?.let { text -> Text(text, color = MaterialTheme.colorScheme.error) }
@@ -114,4 +125,61 @@ fun AboutPage() {
             text = { SelectionContainer { Text(text, Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) } },
             confirmButton = { TextButton(onClick = { document = null }) { Text("关闭") } })
     }
+}
+
+@Composable
+internal fun UpdateDialog(release: ReleaseCheck, close: () -> Unit) {
+    val context = LocalContext.current
+    var opening by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    var error by remember { mutableStateOf<String?>(null) }
+    AlertDialog(onDismissRequest = { if (!opening) close() }, title = { Text("发现新版本") }, text = {
+        Column(Modifier.heightIn(max = 380.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("版本 ${release.tag?.removePrefix("v")}")
+            val date = remember(release.published) { runCatching { java.time.Instant.parse(release.published).atZone(java.time.ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) }.getOrDefault("暂无发布时间") }
+            Text("发布时间：$date")
+            SelectionContainer { Text(release.notes.ifBlank { "此版本尚未填写更新日志。" }) }
+            if (release.download == null) Text("暂未找到安装包，可前往发布页查看。")
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        }
+    }, dismissButton = { TextButton(enabled = !opening, onClick = close) { Text("取消") } }, confirmButton = {
+        TextButton(enabled = !opening, onClick = {
+            opening = true
+            scope.launch {
+                var downloadFailed = false
+                release.download?.let { url ->
+                    downloadFailed = !withContext(Dispatchers.IO) { runCatching {
+                        val manager = context.getSystemService(android.content.Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+                        manager.enqueue(android.app.DownloadManager.Request(Uri.parse(url))
+                            .setTitle("知序课表 ${release.tag}")
+                            .setMimeType("application/vnd.android.package-archive")
+                            .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED))
+                    }.isSuccess }
+                }
+                try {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("$PROJECT_URL/releases/tag/${release.tag}")))
+                    if (downloadFailed) android.widget.Toast.makeText(context, "自动下载未启动，请在发布页点击 APK 下载", android.widget.Toast.LENGTH_LONG).show()
+                    close()
+                } catch (_: Exception) { error = "无法打开发布页，请安装浏览器后重试" }
+                opening = false
+            }
+        }) { Text(if (opening) "正在前往…" else "前往更新") }
+    })
+}
+
+@Composable
+fun StartupUpdateCheck() {
+    val context = LocalContext.current
+    var checked by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var release by remember { mutableStateOf<ReleaseCheck?>(null) }
+    LaunchedEffect(Unit) {
+        if (!checked) {
+            checked = true
+            if (SchedulePreferences(context).autoCheckUpdates) {
+                try { release = withContext(Dispatchers.IO) { checkRelease() }.takeIf { it.tag != null } }
+                catch (e: Exception) { if (e is CancellationException) throw e }
+            }
+        }
+    }
+    release?.let { UpdateDialog(it) { release = null } }
 }

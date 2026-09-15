@@ -28,7 +28,7 @@ android {
  namespace = "cn.edu.sycu.schedule"
  compileSdk = 36
  ndkVersion = "27.2.12479018"
- defaultConfig { applicationId = "cn.edu.sycu.schedule"; minSdk = 26; targetSdk = 36; versionCode = providers.environmentVariable("ZHIXU_VERSION_CODE").orElse("1001").get().toInt(); versionName = providers.environmentVariable("ZHIXU_VERSION_NAME").orElse("0.1.0").get(); testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"; buildConfigField("String", "RELEASE_CERT_SHA256", "\"\"") }
+ defaultConfig { applicationId = "cn.edu.sycu.schedule"; minSdk = 26; targetSdk = 36; versionCode = providers.environmentVariable("ZHIXU_VERSION_CODE").orElse("1002").get().toInt(); versionName = providers.environmentVariable("ZHIXU_VERSION_NAME").orElse("0.1.1").get(); testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"; buildConfigField("String", "RELEASE_CERT_SHA256", "\"\"") }
  defaultConfig {
   listOf("INITIALIZE", "AUTH_STATUS", "LOGIN", "SYNC_TIMETABLE", "LOGOUT", "ERR_AUTH", "ERR_OPERATION").forEachIndexed { index, name ->
    val value = providers.environmentVariable("ZHIXU_$name").orElse((index + 1).toString()).get().toInt()

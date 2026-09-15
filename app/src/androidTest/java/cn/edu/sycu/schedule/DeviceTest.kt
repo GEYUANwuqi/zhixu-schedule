@@ -207,7 +207,10 @@ class DeviceTest {
             assertTrue(Backgrounds.exists(context, BackgroundKind.App))
             assertFalse(Backgrounds.exists(context, BackgroundKind.Widget))
             assertNotNull(Backgrounds.bitmap(context, BackgroundKind.App))
-            assertNull(Backgrounds.widgetBitmap(context, 540, 540))
+            Backgrounds.widgetBitmap(context, 540, 540)!!.also {
+                assertEquals(255, it.getPixel(270, 270).ushr(24))
+                it.recycle()
+            }
 
             Backgrounds.save(context, BackgroundKind.Widget, uri)
             val widget = Backgrounds.widgetBitmap(context, 540, 540)!!
@@ -224,7 +227,18 @@ class DeviceTest {
             assertFalse(Backgrounds.exists(context, BackgroundKind.App))
             assertTrue(Backgrounds.exists(context, BackgroundKind.Widget))
             Backgrounds.clear(context, BackgroundKind.Widget)
-            assertNull(Backgrounds.widgetBitmap(context, 540, 540))
+            val preferences = SchedulePreferences(context)
+            try {
+                for (opacity in listOf(0, 50, 100)) {
+                    preferences.widgetOpacity = opacity
+                    Backgrounds.widgetBitmap(context, 540, 540)!!.also {
+                        assertEquals(opacity * 255 / 100, it.getPixel(270, 270).ushr(24))
+                        it.recycle()
+                    }
+                }
+            } finally {
+                preferences.widgetOpacity = 100
+            }
         } finally {
             source.recycle()
             if (sourceFile.exists()) sourceFile.delete()

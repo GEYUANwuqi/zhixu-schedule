@@ -91,16 +91,6 @@ object CalendarExport {
 }
 
 object PngExport {
-    private val colors =
-        intArrayOf(
-            0xffe4ebd5.toInt(),
-            0xffe7def0.toInt(),
-            0xfff5e1cb.toInt(),
-            0xffd9e8ee.toInt(),
-            0xfff0dce0.toInt(),
-            0xffe8e7cb.toInt(),
-        )
-
     fun write(context: Context, t: Timetable, courses: List<Course>): File {
         val width = 1800
         val column = 238f
@@ -171,9 +161,10 @@ object PngExport {
         require(height <= 16000) { "课表太大，无法导出单张图片" }
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        canvas.drawColor(0xfff8f7ef.toInt())
-        fun text(value: String, x: Float, y: Float, size: Float) {
-            paint.color = 0xff293b2b.toInt()
+        val appearance = SchedulePreferences(context).appearance()
+        canvas.drawColor(appearance.background)
+        fun text(value: String, x: Float, y: Float, size: Float, color: Int = appearance.ink) {
+            paint.color = color
             paint.textSize = size
             canvas.drawText(value, x, y, paint)
         }
@@ -187,12 +178,13 @@ object PngExport {
                 text("周${"一二三四五六日"[day]}", x + 10, top + 70, 24f)
                 var y = top + 90
                 cards.forEach { card ->
-                    paint.color = colors[Math.floorMod(card.course.name.hashCode(), colors.size)]
+                    val cardColor = appearance.card(card.course.name)
+                    paint.color = cardColor
                     canvas.drawRoundRect(x, y, x + column - 10, y + card.height, 16f, 16f, paint)
                     var baseline = y + 14
                     card.lines.forEach { line ->
                         baseline += line.size
-                        text(line.text, x + 12, baseline, line.size)
+                        text(line.text, x + 12, baseline, line.size, readableColor(cardColor))
                         baseline += 7
                     }
                     y += card.height + 12

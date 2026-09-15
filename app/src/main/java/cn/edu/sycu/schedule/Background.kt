@@ -126,12 +126,12 @@ object Backgrounds {
      * to survive the RemoteViews binder limit.
      */
     fun widgetBitmap(context: Context, width: Int, height: Int): Bitmap? {
-        if (!exists(context, BackgroundKind.Widget)) return null
+        val appearance = SchedulePreferences(context).appearance()
         val budget = widgetBitmapSize(width, height)
         val source =
-            decode(maxOf(budget.width, budget.height)) {
+            if (exists(context, BackgroundKind.Widget)) decode(maxOf(budget.width, budget.height)) {
                 file(context, BackgroundKind.Widget).inputStream()
-            } ?: return null
+            } else null
         val target = Bitmap.createBitmap(budget.width, budget.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(target)
         val corner = budget.height / 9f
@@ -145,9 +145,14 @@ object Backgrounds {
                 )
             }
         )
-        canvas.drawBitmap(source, cropMatrix(source, budget), Paint(Paint.FILTER_BITMAP_FLAG))
-        source.recycle()
-        canvas.drawColor(Color.argb((VEIL * 255).toInt(), 255, 255, 255))
+        canvas.drawColor(appearance.background)
+        source?.let {
+            canvas.drawBitmap(it, cropMatrix(it, budget), Paint(Paint.FILTER_BITMAP_FLAG))
+            it.recycle()
+            canvas.drawColor((appearance.background and 0x00ffffff) or ((VEIL * 255).toInt() shl 24))
+        }
+        // Apply opacity to the completed image + theme veil, never the text.
+        canvas.drawColor(Color.argb(appearance.opacity * 255 / 100, 255, 255, 255), PorterDuff.Mode.DST_IN)
         return target
     }
 

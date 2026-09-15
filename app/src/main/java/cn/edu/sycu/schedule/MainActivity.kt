@@ -55,16 +55,15 @@ class MainActivity : ComponentActivity() {
             var consented by remember { mutableStateOf(PrivacyConsent.accepted(this@MainActivity)) }
             var consentError by remember { mutableStateOf(false) }
             var themeColor by remember { mutableIntStateOf(SchedulePreferences(this@MainActivity).themeColor) }
+            var appearanceVersion by remember { mutableIntStateOf(0) }
+            val appearance = remember(themeColor, appearanceVersion) { SchedulePreferences(this@MainActivity).appearance() }
+            CompositionLocalProvider(LocalAppearance provides appearance) {
             MaterialTheme(
-                colorScheme =
-                    lightColorScheme(
-                        primary = Color(themeColor),
-                        background = Color(0xfff8f7ef),
-                        surface = Color(0xfff8f7ef),
-                    )
+                colorScheme = appearance.scheme()
             ) {
                 if (consented) {
-                    App(openTodayVersion, onThemeColor = { themeColor = it })
+                    StartupUpdateCheck()
+                    App(openTodayVersion, onThemeColor = { themeColor = it }, onAppearance = { appearanceVersion++ })
                 } else {
                     PrivacyGate(onAgree = {
                         if (PrivacyConsent.accept(this@MainActivity)) {
@@ -77,23 +76,13 @@ class MainActivity : ComponentActivity() {
                         confirmButton = { TextButton(onClick = { consentError = false }) { Text("知道了") } })
                 }
             }
+            }
         }
     }
 }
 
-private val green = Color(0xffe2efdb)
-private val courseColors =
-    listOf(
-        Color(0xffe4ebd5),
-        Color(0xffe7def0),
-        Color(0xfff5e1cb),
-        Color(0xffd9e8ee),
-        Color(0xfff0dce0),
-        Color(0xffe8e7cb),
-    )
-
 @Composable
-fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}) {
+fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}, onAppearance: () -> Unit = {}) {
     val context = LocalContext.current
     val view = LocalView.current
     var backdrop by remember { mutableStateOf<ImageBitmap?>(null) }
@@ -274,8 +263,10 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}) {
                         JSONObject().put("year", t.year).put("semester", t.semester),
                     )
                 }
-            val incoming = parseCourses(data, t)
-            dao.merge(t.copy(times = data.getJSONArray("times").toString()), incoming)
+            val updated = t.copy(times = data.getJSONArray("times").toString())
+            val rules = preferences.rules
+            val incoming = parseCourses(data, updated).map { applyCourseRules(it, rules, updated) }
+            dao.merge(updated, incoming)
             activeId = t.id
             pendingSync = false
             settings = false
@@ -298,7 +289,7 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}) {
                 )
                 Box(
                     Modifier.matchParentSize()
-                        .background(Color.White.copy(alpha = Backgrounds.VEIL))
+                        .background(MaterialTheme.colorScheme.background.copy(alpha = Backgrounds.VEIL))
                 )
             }
             Column(
@@ -317,7 +308,7 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}) {
                         Text(
                             "只关心下一节课",
                             style = MaterialTheme.typography.labelMedium,
-                            color = Color(0xff667161),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     TextButton(onClick = { settings = !settings }) {
@@ -348,7 +339,9 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}) {
                                     preferences.save(it)
                                 },
                                 themeColor = themeColor,
-                                onThemeColor = { themeColor = it; preferences.themeColor = it; onThemeColor(it) },
+                                onThemeColor = { themeColor = it; preferences.themeColor = it; onThemeColor(it); TodayWidget.refresh(context) },
+                                courseNames = allCourses.map { it.name }.distinct().sorted(),
+                                onAppearance = { onAppearance(); TodayWidget.refresh(context) },
                                 widgetLarge = widgetLarge,
                                 onWidgetLarge = {
                                     widgetLarge = it
@@ -730,7 +723,7 @@ fun ScheduleGrid(
                     Column(
                         Modifier.height(rowHeight)
                             .fillMaxWidth()
-                            .background(if (selectedPeriod == p) green else Color.Transparent)
+                            .background(if (selectedPeriod == p) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
                             .clickable { selectedPeriod = if (selectedPeriod == p) null else p },
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
@@ -759,7 +752,7 @@ fun ScheduleGrid(
                     Column(
                         Modifier.height(headerHeight)
                             .fillMaxWidth()
-                            .background(if (highlight) green else Color.Transparent)
+                            .background(if (highlight) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
                             .clickable { selectedDay = if (selectedDay == day) null else day },
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
@@ -786,10 +779,10 @@ fun ScheduleGrid(
                                 Modifier.height(rowHeight)
                                     .fillMaxWidth()
                                     .background(
-                                        if (highlight || selectedPeriod == p) Color(0xfff0f7e9)
+                                        if (highlight || selectedPeriod == p) MaterialTheme.colorScheme.surfaceVariant
                                         else Color.Transparent
                                     )
-                                    .border(.5.dp, Color(0xffe7e8de))
+                                    .border(.5.dp, MaterialTheme.colorScheme.outlineVariant)
                             )
                         }
                         val items =
@@ -829,12 +822,8 @@ fun ScheduleGrid(
                                         shape = RoundedCornerShape(5.dp),
                                         colors =
                                             CardDefaults.cardColors(
-                                                containerColor =
-                                                    courseColors[
-                                                        Math.floorMod(
-                                                            c.name.hashCode(),
-                                                            courseColors.size,
-                                                        )]
+                                                containerColor = Color(LocalAppearance.current.card(c.name)),
+                                                contentColor = Color(readableColor(LocalAppearance.current.card(c.name)))
                                             ),
                                     ) {
                                         Column(

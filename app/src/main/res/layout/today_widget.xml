@@ -1,12 +1,12 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent">
  <ImageView android:id="@+id/widget_background" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:src="@drawable/widget_background" android:importantForAccessibility="no"/>
  <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="16dp">
-  <TextView android:id="@+id/widget_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="今日课表" android:textSize="17sp" android:textStyle="bold" android:textColor="#293b2b"/>
+  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:baselineAligned="false"><TextView android:id="@+id/widget_title" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center_vertical" android:text="今日课表" android:textSize="17sp" android:textStyle="bold" android:textColor="#293b2b"/><ImageView android:id="@+id/widget_prev" android:layout_width="40dp" android:layout_height="36dp" android:padding="10dp" android:src="@drawable/ic_widget_prev" android:background="@drawable/widget_arrow_background" android:contentDescription="前一天"/><ImageView android:id="@+id/widget_next" android:layout_width="40dp" android:layout_height="36dp" android:layout_marginStart="18dp" android:padding="10dp" android:src="@drawable/ic_widget_next" android:background="@drawable/widget_arrow_background" android:contentDescription="后一天"/></LinearLayout>
   <TextView android:id="@+id/widget_date" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textSize="12sp" android:textColor="#667161"/>
   <TextView android:id="@+id/widget_subtitle" android:layout_marginBottom="8dp" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#667161"/>
   <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
    <ListView android:id="@+id/widget_list" android:layout_width="match_parent" android:layout_height="match_parent" android:divider="@android:color/transparent" android:dividerHeight="6dp"/>
-   <TextView android:id="@+id/widget_empty" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:text="今天没有课程" android:textColor="#667161"/>
+   <TextView android:id="@+id/widget_empty" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:text="本日没有课程" android:textColor="#667161"/>
   </FrameLayout>
  </LinearLayout>
 </FrameLayout>

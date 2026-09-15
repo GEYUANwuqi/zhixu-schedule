@@ -38,6 +38,11 @@ open class TodayWidget : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
+        if (intent.action == ACTION_PREV || intent.action == ACTION_NEXT) {
+            val delta = if (intent.action == ACTION_PREV) -1 else 1
+            val prefs = context.getSharedPreferences("widget-days", Context.MODE_PRIVATE)
+            prefs.edit().putInt("offset", prefs.getInt("offset", 0) + delta).apply()
+        }
         if (intent.action in WIDGET_ACTIONS) {
             val pending = goAsync()
             CoroutineScope(Dispatchers.IO).launch {
@@ -57,6 +62,8 @@ open class TodayWidget : AppWidgetProvider() {
 
     companion object {
         const val REFRESH_ACTION = "cn.edu.sycu.schedule.REFRESH_WIDGET"
+        const val ACTION_PREV = "cn.edu.sycu.schedule.WIDGET_PREV"
+        const val ACTION_NEXT = "cn.edu.sycu.schedule.WIDGET_NEXT"
 
         private val WIDGET_ACTIONS =
             listOf(
@@ -64,6 +71,8 @@ open class TodayWidget : AppWidgetProvider() {
                 Intent.ACTION_TIME_CHANGED,
                 Intent.ACTION_TIMEZONE_CHANGED,
                 REFRESH_ACTION,
+                ACTION_PREV,
+                ACTION_NEXT,
             )
 
         /** Both sizes share the label「知序 · 今日课表」, told apart by size and preview. */
@@ -99,16 +108,33 @@ open class TodayWidget : AppWidgetProvider() {
                 val table = tables.find { it.id == selected } ?: tables.firstOrNull()
                 ids.forEach { id ->
                     val views = RemoteViews(context.packageName, layout)
+                    val appearance = SchedulePreferences(context).appearance()
+                    listOf(R.id.widget_title, R.id.widget_date, R.id.widget_subtitle, R.id.widget_empty).forEach {
+                        views.setTextColor(it, appearance.ink)
+                    }
+                    views.setInt(R.id.widget_prev, "setColorFilter", appearance.seed)
+                    views.setInt(R.id.widget_next, "setColorFilter", appearance.seed)
+                    val offset = context.getSharedPreferences("widget-days", Context.MODE_PRIVATE).getInt("offset", 0)
+                    val date = today().plusDays(offset.toLong())
+                    val title = when (offset) {
+                        -1 -> "昨天课表"
+                        -2 -> "前天课表"
+                        1 -> "明天课表"
+                        2 -> "后天课表"
+                        in Int.MIN_VALUE..-3 -> "以往课表"
+                        in 3..Int.MAX_VALUE -> "未来课表"
+                        else -> "今日课表"
+                    }
                     if (inlineDate) {
-                        views.setTextViewText(R.id.widget_title, "今日课表 · ${today()}")
+                        views.setTextViewText(R.id.widget_title, "$title · $date")
                     } else {
-                        views.setTextViewText(R.id.widget_title, "今日课表")
-                        views.setTextViewText(R.id.widget_date, today().toString())
+                        views.setTextViewText(R.id.widget_title, title)
+                        views.setTextViewText(R.id.widget_date, date.toString())
                     }
                     views.setTextViewText(R.id.widget_subtitle, table?.name ?: "知序")
                     views.setTextViewText(
                         R.id.widget_empty,
-                        if (table == null) "尚无课表，点击添加或同步" else "今天没有课程",
+                        if (table == null) "尚无课表，点击添加或同步" else "本日没有课程",
                     )
                     val open =
                         PendingIntent.getActivity(
@@ -144,6 +170,8 @@ open class TodayWidget : AppWidgetProvider() {
                         views.setImageViewBitmap(R.id.widget_background, background)
                     }
                     views.setOnClickPendingIntent(R.id.widget_root, open)
+                    views.setOnClickPendingIntent(R.id.widget_prev, PendingIntent.getBroadcast(context, id * 2, Intent(context, provider).setAction(ACTION_PREV), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
+                    views.setOnClickPendingIntent(R.id.widget_next, PendingIntent.getBroadcast(context, id * 2 + 1, Intent(context, provider).setAction(ACTION_NEXT), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
                     views.setPendingIntentTemplate(
                         R.id.widget_list,
                         PendingIntent.getActivity(
@@ -161,6 +189,7 @@ open class TodayWidget : AppWidgetProvider() {
                     val service =
                         Intent(context, TodayWidgetService::class.java)
                             .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
+                            .putExtra("widget_offset", offset)
                     service.data = android.net.Uri.parse("sycu-widget://today/$id")
                     views.setRemoteAdapter(R.id.widget_list, service)
                     views.setEmptyView(R.id.widget_list, R.id.widget_empty)
@@ -181,6 +210,7 @@ class TodayWidgetService : RemoteViewsService() {
 
 class TodayFactory(private val context: Context) : RemoteViewsService.RemoteViewsFactory {
     private var rows = emptyList<Occurrence>()
+    private var date: LocalDate = today()
 
     override fun onCreate() {}
 
@@ -192,7 +222,8 @@ class TodayFactory(private val context: Context) : RemoteViewsService.RemoteView
                     val tables = db.dao().timetables().first()
                     val id = SchedulePreferences(context).activeId
                     val t = tables.find { it.id == id } ?: tables.firstOrNull()
-                    if (t == null) emptyList() else todayLessons(t, db.dao().allCourses(t.id))
+                    date = today().plusDays(context.getSharedPreferences("widget-days", Context.MODE_PRIVATE).getInt("offset", 0).toLong())
+                    if (t == null) emptyList() else todayLessons(t, db.dao().allCourses(t.id), date)
                 } finally {
                     db.close()
                 }
@@ -208,6 +239,10 @@ class TodayFactory(private val context: Context) : RemoteViewsService.RemoteView
     override fun getViewAt(position: Int): RemoteViews? =
         rows.getOrNull(position)?.let { item ->
             RemoteViews(context.packageName, R.layout.today_widget_row).apply {
+                val appearance = SchedulePreferences(context).appearance()
+                val background = appearance.card(item.course.name)
+                setInt(R.id.widget_row, "setBackgroundColor", (background and 0x00ffffff) or (appearance.opacity * 255 / 100 shl 24))
+                listOf(R.id.widget_time, R.id.widget_course, R.id.widget_location).forEach { setTextColor(it, readableColor(background)) }
                 setTextViewText(
                     R.id.widget_time,
                     "${item.start.toLocalTime()}–${item.end.toLocalTime()}",

@@ -28,6 +28,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import android.net.Uri
@@ -66,9 +67,15 @@ fun ScheduleSettings(
     checkLogin: () -> Unit,
     logout: () -> Unit,
     widget: (Boolean) -> Unit,
+    courseNames: List<String> = emptyList(),
+    onAppearance: () -> Unit = {},
 ) {
+    val context = LocalContext.current
+    val preferences = remember { SchedulePreferences(context) }
+    var opacity by remember { mutableIntStateOf(preferences.widgetOpacity) }
     var section by remember { mutableStateOf<String?>(null) }
-    BackHandler(section != null) { section = if (section == "主题色") "个性化" else null }
+    fun parent(page: String?) = when (page) { "主题色", "课程卡片颜色" -> "个性化"; "同步规则" -> "学校同步"; else -> null }
+    BackHandler(section != null) { section = parent(section) }
     AnimatedContent(
         section,
         transitionSpec = { fadeIn(tween(120)) togetherWith fadeOut(tween(90)) },
@@ -78,9 +85,11 @@ fun ScheduleSettings(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            if (page != null) TextButton(onClick = { section = if (page == "主题色") "个性化" else null }) { Text(if (page == "主题色") "‹ 返回个性化" else "‹ 返回设置") }
+            if (page != null) TextButton(onClick = { section = parent(page) }) { Text("‹ 返回" + (parent(page) ?: "设置")) }
             Text(page ?: "设置", style = MaterialTheme.typography.titleLarge)
             when (page) {
+                "同步规则" -> RuleSettings(preferences)
+                "课程卡片颜色" -> CourseColorSettings(courseNames, preferences, onAppearance)
                 null -> {
                     listOf("课表管理", "卡片显示", "个性化", "学校同步", "导出与日历", "桌面小组件", "关于").forEach { title ->
                         ElevatedCard(
@@ -120,15 +129,16 @@ fun ScheduleSettings(
                     DisplaySwitch("备注", display.note) { onDisplay(display.copy(note = it)) }
                 }
                 "主题色" -> {
-                    Text("选择应用的强调色，立即生效并自动保存。")
-                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        listOf(0xff52754f, 0xff3f6f8f, 0xff8a5a78, 0xffa66a2c, 0xff5d647a).forEach { value ->
-                            FilterChip(selected = themeColor == value.toInt(), onClick = { onThemeColor(value.toInt()) }, label = { Text("●", color = Color(value)) })
-                        }
-                    }
+                    Text("选择一套配色，背景、菜单、小组件和默认课程颜色一起更换。")
+                    ThemeChoices(themeColor, onThemeColor)
                 }
                 "个性化" -> {
                     OutlinedButton(onClick = { section = "主题色" }) { Text("主题色") }
+                    OutlinedButton(onClick = { section = "课程卡片颜色" }) { Text("课程卡片颜色") }
+                    Text("小组件背景不透明度：$opacity%")
+                    Text("100% 完全显示，0% 完全透明；自定义图片与背景一起调整。", style = MaterialTheme.typography.bodySmall)
+                    Slider(opacity.toFloat(), { opacity = it.toInt(); preferences.widgetOpacity = opacity; onAppearance() }, valueRange = 0f..100f)
+                    WidgetPreview(widgetLarge, table, lessons, widgetBackground)
                     Text("App 背景和桌面小组件背景可以分别设置，图片只保存在本机，不会上传。")
                     BackgroundPicker(
                         title = "App 背景",
@@ -155,6 +165,7 @@ fun ScheduleSettings(
                     Text("建议选浅色或低对比度的图片，课程文字更清楚。")
                 }
                 "学校同步" -> {
+                    OutlinedButton(enabled = !busy, onClick = { section = "同步规则" }) { Text("管理同步规则（${preferences.rules.size}）") }
                     Text(if (authenticated) "已保存登录状态 · 同步时检查有效性" else "未登录")
                     Button(enabled = !busy, onClick = sync) { Text("同步学校课表") }
                     if (table == null) Text("首次同步默认创建秋冬学期，8 月 24 日开学，共 20 周。")
@@ -222,7 +233,7 @@ private fun BackgroundPicker(
         Modifier.fillMaxWidth()
             .height(180.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xffe2efdb)),
+            .background(MaterialTheme.colorScheme.primaryContainer),
         contentAlignment = Alignment.Center,
     ) {
         if (image == null) Text("当前为默认背景")
@@ -238,6 +249,7 @@ private fun BackgroundPicker(
 /** Shows the whole picked image with the kept region highlighted and the rest dimmed. */
 @Composable
 private fun BackgroundCropPreview(image: ImageBitmap, guide: CropGuide, modifier: Modifier, selected: CropBox? = null) {
+    val selectionColor = MaterialTheme.colorScheme.primary
     Canvas(modifier) {
         val scale = minOf(size.width / image.width, size.height / image.height)
         val drawn = Size(image.width * scale, image.height * scale)
@@ -262,7 +274,7 @@ private fun BackgroundCropPreview(image: ImageBitmap, guide: CropGuide, modifier
         drawRect(scrim, Offset(0f, crop.top), Size(crop.left, crop.height))
         drawRect(scrim, Offset(crop.right, crop.top), Size(size.width - crop.right, crop.height))
         drawRect(
-            color = Color(0xff52754f),
+            color = selectionColor,
             topLeft = crop.topLeft,
             size = crop.size,
             style = Stroke(2.dp.toPx()),
