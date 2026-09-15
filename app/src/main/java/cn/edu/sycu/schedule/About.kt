@@ -131,38 +131,33 @@ fun AboutPage() {
 internal fun UpdateDialog(release: ReleaseCheck, close: () -> Unit) {
     val context = LocalContext.current
     var opening by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
     var error by remember { mutableStateOf<String?>(null) }
     AlertDialog(onDismissRequest = { if (!opening) close() }, title = { Text("发现新版本") }, text = {
         Column(Modifier.heightIn(max = 380.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("版本 ${release.tag?.removePrefix("v")}")
             val date = remember(release.published) { runCatching { java.time.Instant.parse(release.published).atZone(java.time.ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) }.getOrDefault("暂无发布时间") }
             Text("发布时间：$date")
-            SelectionContainer { Text(release.notes.ifBlank { "此版本尚未填写更新日志。" }) }
+            ReleaseMarkdown(release.notes.ifBlank { "此版本尚未填写更新日志。" })
             if (release.download == null) Text("暂未找到安装包，可前往发布页查看。")
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
     }, dismissButton = { TextButton(enabled = !opening, onClick = close) { Text("取消") } }, confirmButton = {
         TextButton(enabled = !opening, onClick = {
             opening = true
-            scope.launch {
-                var downloadFailed = false
-                release.download?.let { url ->
-                    downloadFailed = !withContext(Dispatchers.IO) { runCatching {
-                        val manager = context.getSystemService(android.content.Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
-                        manager.enqueue(android.app.DownloadManager.Request(Uri.parse(url))
-                            .setTitle("知序课表 ${release.tag}")
-                            .setMimeType("application/vnd.android.package-archive")
-                            .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED))
-                    }.isSuccess }
-                }
-                try {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("$PROJECT_URL/releases/tag/${release.tag}")))
-                    if (downloadFailed) android.widget.Toast.makeText(context, "自动下载未启动，请在发布页点击 APK 下载", android.widget.Toast.LENGTH_LONG).show()
-                    close()
-                } catch (_: Exception) { error = "无法打开发布页，请安装浏览器后重试" }
-                opening = false
+            fun browser(url: String) = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                // Resolve a browser instead of a GitHub app or APK installer.
+                selector = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_BROWSER)
+                putExtra("create_new_tab", true)
             }
+            try {
+                context.startActivity(browser("$PROJECT_URL/releases/tag/${release.tag}"))
+                release.download?.let { url ->
+                    try { context.startActivity(browser(url)) }
+                    catch (_: Exception) { android.widget.Toast.makeText(context, "无法打开下载链接，请在发布页点击 APK 下载", android.widget.Toast.LENGTH_LONG).show() }
+                }
+                close()
+            } catch (_: Exception) { error = "无法打开浏览器，请安装浏览器后重试" }
+            opening = false
         }) { Text(if (opening) "正在前往…" else "前往更新") }
     })
 }
