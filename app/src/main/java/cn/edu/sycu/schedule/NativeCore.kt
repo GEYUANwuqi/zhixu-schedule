@@ -18,6 +18,11 @@ class ScheduleApplication : android.app.Application() {
     override fun onCreate() {
         super.onCreate()
         verifyReleaseSignature()
+        try { BackupStore.recover(this) }
+        catch (_: Exception) {
+            BackupStore.restoring = true
+            BackupStore.recoveryRequired.value = true
+        }
         if (PrivacyConsent.accepted(this)) initializeConsentedServices()
     }
 
@@ -34,6 +39,7 @@ class ScheduleApplication : android.app.Application() {
         if (android.os.Build.VERSION.SDK_INT >= 28) WebView.setDataDirectorySuffix("login")
         WebView.setWebContentsDebuggingEnabled(false)
         servicesReady = true
+        CourseAlerts.request(this)
     }
 
     private fun verifyReleaseSignature() {

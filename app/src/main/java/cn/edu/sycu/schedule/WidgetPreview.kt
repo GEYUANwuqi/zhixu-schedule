@@ -6,7 +6,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,6 +34,8 @@ fun WidgetPreview(
     modifier: Modifier = Modifier,
 ) {
     val appearance = LocalAppearance.current
+    var now by remember { mutableStateOf(java.time.ZonedDateTime.now(schoolZone)) }
+    LaunchedEffect(Unit) { while (isActive) { now = java.time.ZonedDateTime.now(schoolZone); delay(1000) } }
     val shape = RoundedCornerShape(20.dp)
     Box(
         modifier
@@ -78,26 +82,31 @@ fun WidgetPreview(
                 }
             } else {
                 lessons.forEachIndexed { index, item ->
+                    val phase = lessonPhase(item.start, item.end, now)
+                    val cardColor = phaseColor(appearance.card(item.course.name), phase)
                     if (index > 0) Spacer(Modifier.height(6.dp))
                     Column(
                         Modifier.fillMaxWidth()
-                            .background(Color(appearance.card(item.course.name)).copy(alpha = appearance.opacity / 100f))
+                            .alpha(phaseAlpha(phase, appearance.pastCourseOpacity))
+                            .clip(lessonShape(item.course.isMakeup))
+                            .background(Color(cardColor).copy(alpha = appearance.opacity / 100f))
+                            .makeupCorner(item.course.isMakeup)
                             .padding(8.dp)
                     ) {
                         Text(
                             "${item.start.toLocalTime()}–${item.end.toLocalTime()}",
-                            color = Color(readableColor(appearance.card(item.course.name))),
+                            color = Color(readableColor(cardColor)),
                             fontSize = 12.sp,
                         )
                         Text(
                             item.course.name,
-                            color = Color(readableColor(appearance.card(item.course.name))),
+                            color = Color(readableColor(cardColor)),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                         )
                         Text(
                             courseLocation(item.course),
-                            color = Color(readableColor(appearance.card(item.course.name))),
+                            color = Color(readableColor(cardColor)),
                             fontSize = 12.sp,
                         )
                     }

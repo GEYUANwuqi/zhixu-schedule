@@ -15,6 +15,7 @@ fun RuleSettings(preferences: SchedulePreferences) {
     var editing by remember { mutableStateOf<Int?>(null) }
     Text("规则按学校返回的原始字段完全匹配，不忽略空格。留空或显示“默认”的修改项保持原值；多条命中按列表顺序覆盖填写项。下次同步生效，手动修改仍保留。")
     Button(onClick = { editing = -1 }) { Text("新增规则") }
+    RuleTransferButtons(rules) { rules = it; preferences.rules = it }
     if (rules.isEmpty()) Text("暂无规则。例如：教室完全匹配 G411 → 教室改为建工4楼。")
     rules.forEachIndexed { index, rule ->
         ElevatedCard(Modifier.fillMaxWidth()) {

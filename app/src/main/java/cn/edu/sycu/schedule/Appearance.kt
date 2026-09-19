@@ -21,7 +21,7 @@ val themePalettes = listOf(
     palette("远山", 0xff5d647a, 0xfff4f5f8, 0xfffcfcfe, 0xffdce0ed, 0xffe8eaf1, 0xffadb3c5, 0xffdce1ef, 0xffe5dcec, 0xffd5e5e0, 0xffebe2d2, 0xffeadbdc),
 )
 fun themePalette(seed: Int) = themePalettes.firstOrNull { it.primary == seed } ?: themePalettes.first()
-data class Appearance(private val theme: Int = 0xff52754f.toInt(), val opacity: Int = 100, val cards: Map<String, Int> = emptyMap()) {
+data class Appearance(private val theme: Int = 0xff52754f.toInt(), val opacity: Int = 100, val cards: Map<String, Int> = emptyMap(), val pastCourseOpacity: Int = 60) {
     private val palette get() = themePalette(theme)
     val seed get() = palette.primary
     val background get() = palette.background

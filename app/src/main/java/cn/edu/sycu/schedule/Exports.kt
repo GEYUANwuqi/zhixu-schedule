@@ -91,6 +91,7 @@ object CalendarExport {
 }
 
 object PngExport {
+    internal fun regularCourses(t: Timetable, courses: List<Course>) = courses.filter { !it.deleted && !it.isMakeup && it.timetableId == t.id }
     fun write(context: Context, t: Timetable, courses: List<Course>): File {
         val width = 1800
         val column = 238f
@@ -119,44 +120,35 @@ object PngExport {
             return output
         }
         val times = timesFor(t)
-        val sections =
-            listOf(1, 0).map { parity ->
-                (1..7).map { day ->
-                    courses
-                        .filter { it.weekday == day && it.weekList().any { w -> w % 2 == parity } }
-                        .sortedBy { it.periodList().first() }
-                        .map { c ->
-                            val p = c.periodList()
-                            val groups = mutableListOf<MutableList<Int>>()
-                            p.forEach {
-                                if (groups.isEmpty() || groups.last().last() + 1 != it)
-                                    groups.add(mutableListOf(it))
-                                else groups.last().add(it)
-                            }
-                            val timeLabel =
-                                groups.joinToString(" / ") { group ->
-                                    "${times.getOrNull(group.first()-1)?.first?:"待定"}–${times.getOrNull(group.last()-1)?.second?:"待定"}"
-                                }
-                            Card(
-                                c,
-                                wrap(c.name, 25f) +
-                                    wrap(timeLabel, 19f) +
-                                    wrap("${c.periods}节", 19f) +
-                                    wrap(roomLabel(c.room), 20f) +
-                                    wrap(c.teacher, 20f) +
-                                    wrap(
-                                        "第${c.weekList().filter { it%2==parity }.joinToString(",")}周",
-                                        18f,
-                                    ) +
-                                    (if (c.note.isBlank()) emptyList() else wrap(c.note, 18f)),
-                            )
-                        }
+        val sections = listOf(1, 0).map { parity ->
+            (1..7).map { day ->
+                lessonBlocks(regularCourses(t, courses).filter { it.weekday == day && it.weekList().any { w -> w % 2 == parity } })
+                    .sortedBy { it.periods.first() }.map { block ->
+                        val c = block.course.copy(periods = block.periods.joinToString(","))
+                        val timeLabel = "${times.getOrNull(block.periods.first()-1)?.first ?: "待定"}–${times.getOrNull(block.periods.last()-1)?.second ?: "待定"}"
+                        Card(c, wrap(c.name, 25f) + wrap(timeLabel, 19f) + wrap("${c.periods}节", 19f) +
+                            wrap(roomLabel(c.room), 20f) + wrap(c.teacher, 20f) +
+                            wrap("第${c.weekList().filter { it % 2 == parity }.joinToString(",")}周", 18f) +
+                            (if (c.note.isBlank()) emptyList() else wrap(c.note, 18f)))
+                    }
+            }
+        }
+        val periodCount = maxOf(10, sections.flatten().flatten().maxOfOrNull { it.course.periodList().last() } ?: 10)
+        // Each period has the same shared height in every weekday column. Overlapping
+        // regular courses stay readable inside their shared period region.
+        val rowHeights = sections.map { days ->
+            FloatArray(periodCount) { 70f }.also { rows ->
+                days.forEach { cards ->
+                    lessonStacks(cards.map { it.course }).forEach { stack ->
+                        val members = stack.blocks.map { b -> cards.first { it.course == b.course } }
+                        val required = members.sumOf { (it.height + 12).toDouble() }.toFloat()
+                        val perRow = required / (stack.end - stack.start + 1)
+                        for (p in stack.start..stack.end) rows[p - 1] = maxOf(rows[p - 1], perRow)
+                    }
                 }
             }
-        val heights =
-            sections.map { days ->
-                days.maxOf { cards -> cards.sumOf { (it.height + 12).toDouble() }.toFloat() } + 110
-            }
+        }
+        val heights = rowHeights.map { it.sum() + 110 }
         val height = (190 + heights.sum() + 80).toInt()
         require(height <= 16000) { "课表太大，无法导出单张图片" }
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
@@ -176,18 +168,25 @@ object PngExport {
             days.forEachIndexed { day, cards ->
                 val x = margin + day * column
                 text("周${"一二三四五六日"[day]}", x + 10, top + 70, 24f)
-                var y = top + 90
-                cards.forEach { card ->
-                    val cardColor = appearance.card(card.course.name)
-                    paint.color = cardColor
-                    canvas.drawRoundRect(x, y, x + column - 10, y + card.height, 16f, 16f, paint)
-                    var baseline = y + 14
-                    card.lines.forEach { line ->
-                        baseline += line.size
-                        text(line.text, x + 12, baseline, line.size, readableColor(cardColor))
-                        baseline += 7
+                val rows = rowHeights[index]
+                lessonStacks(cards.map { it.course }).forEach { stack ->
+                    val members = stack.blocks.map { b -> cards.first { it.course == b.course } }
+                    var y = top + 90 + rows.take(stack.start - 1).sum()
+                    val available = rows.slice((stack.start - 1)..(stack.end - 1)).sum()
+                    val extra = (available - members.sumOf { (it.height + 12).toDouble() }.toFloat()) / members.size
+                    members.forEach { card ->
+                        val cardHeight = card.height + extra
+                        val cardColor = appearance.card(card.course.name)
+                        paint.color = cardColor
+                        canvas.drawRoundRect(x, y, x + column - 10, y + cardHeight, 16f, 16f, paint)
+                        var baseline = y + 14
+                        card.lines.forEach { line ->
+                            baseline += line.size
+                            text(line.text, x + 12, baseline, line.size, readableColor(cardColor))
+                            baseline += 7
+                        }
+                        y += cardHeight + 12
                     }
-                    y += card.height + 12
                 }
             }
             top += heights[index]

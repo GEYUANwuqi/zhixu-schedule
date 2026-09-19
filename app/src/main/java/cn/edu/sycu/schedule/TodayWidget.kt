@@ -37,7 +37,13 @@ open class TodayWidget : AppWidgetProvider() {
     ) = requestRefresh(context)
 
     override fun onReceive(context: Context, intent: Intent) {
+        if (BackupStore.restoring) return
         super.onReceive(context, intent)
+        if (intent.action == ACTION_TODAY) {
+            val prefs = context.getSharedPreferences("widget-days", Context.MODE_PRIVATE)
+            if (prefs.getInt("offset", 0) == 0) return
+            prefs.edit().putInt("offset", 0).apply()
+        }
         if (intent.action == ACTION_PREV || intent.action == ACTION_NEXT) {
             val delta = if (intent.action == ACTION_PREV) -1 else 1
             val prefs = context.getSharedPreferences("widget-days", Context.MODE_PRIVATE)
@@ -47,7 +53,10 @@ open class TodayWidget : AppWidgetProvider() {
             val pending = goAsync()
             CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    updateComponent(context, component, layout, inlineDate)
+                    if (intent.action == ACTION_TODAY) {
+                        updateComponent(context, TodayWidget::class.java, R.layout.today_widget, false)
+                        updateComponent(context, TodayWidgetLarge::class.java, R.layout.today_widget_large, true)
+                    } else updateComponent(context, component, layout, inlineDate)
                 } finally {
                     pending.finish()
                 }
@@ -64,6 +73,7 @@ open class TodayWidget : AppWidgetProvider() {
         const val REFRESH_ACTION = "cn.edu.sycu.schedule.REFRESH_WIDGET"
         const val ACTION_PREV = "cn.edu.sycu.schedule.WIDGET_PREV"
         const val ACTION_NEXT = "cn.edu.sycu.schedule.WIDGET_NEXT"
+        const val ACTION_TODAY = "cn.edu.sycu.schedule.WIDGET_TODAY"
 
         private val WIDGET_ACTIONS =
             listOf(
@@ -73,6 +83,7 @@ open class TodayWidget : AppWidgetProvider() {
                 REFRESH_ACTION,
                 ACTION_PREV,
                 ACTION_NEXT,
+                ACTION_TODAY,
             )
 
         /** Both sizes share the label「知序 · 今日课表」, told apart by size and preview. */
@@ -101,6 +112,10 @@ open class TodayWidget : AppWidgetProvider() {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, provider))
             if (ids.isEmpty()) return
+            val alarm = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+            val tick = PendingIntent.getBroadcast(context, 901, Intent(context, provider).setAction(REFRESH_ACTION), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            // Inexact refresh requires no exact-alarm permission; Android may defer it in power saving modes.
+            alarm.setAndAllowWhileIdle(android.app.AlarmManager.RTC, (System.currentTimeMillis() / 60000 + 1) * 60000, tick)
             val db = ScheduleDb.open(context)
             try {
                 val tables = db.dao().timetables().first()
@@ -116,6 +131,9 @@ open class TodayWidget : AppWidgetProvider() {
                     views.setInt(R.id.widget_next, "setColorFilter", appearance.seed)
                     val offset = context.getSharedPreferences("widget-days", Context.MODE_PRIVATE).getInt("offset", 0)
                     val date = today().plusDays(offset.toLong())
+                    views.setViewVisibility(R.id.widget_today, if (offset == 0) android.view.View.GONE else android.view.View.VISIBLE)
+                    views.setTextColor(R.id.widget_today, appearance.seed)
+                    views.setOnClickPendingIntent(R.id.widget_today, PendingIntent.getBroadcast(context, id, Intent(context, provider).setAction(ACTION_TODAY), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
                     val title = when (offset) {
                         -1 -> "昨天课表"
                         -2 -> "前天课表"
@@ -223,7 +241,7 @@ class TodayFactory(private val context: Context) : RemoteViewsService.RemoteView
                     val id = SchedulePreferences(context).activeId
                     val t = tables.find { it.id == id } ?: tables.firstOrNull()
                     date = today().plusDays(context.getSharedPreferences("widget-days", Context.MODE_PRIVATE).getInt("offset", 0).toLong())
-                    if (t == null) emptyList() else todayLessons(t, db.dao().allCourses(t.id), date)
+                    if (t == null) emptyList() else todayLessons(t, db.dao().allCourses(t.id) + MakeupStore.courses(context, t), date)
                 } finally {
                     db.close()
                 }
@@ -238,11 +256,27 @@ class TodayFactory(private val context: Context) : RemoteViewsService.RemoteView
 
     override fun getViewAt(position: Int): RemoteViews? =
         rows.getOrNull(position)?.let { item ->
+            val phase = lessonPhase(item.start, item.end, java.time.ZonedDateTime.now(schoolZone))
             RemoteViews(context.packageName, R.layout.today_widget_row).apply {
+                setInt(R.id.widget_row, "setBackgroundResource", if (item.course.isMakeup) R.drawable.widget_makeup_background else R.drawable.widget_course_background)
+                setViewVisibility(R.id.widget_makeup_corner, if (item.course.isMakeup) android.view.View.VISIBLE else android.view.View.GONE)
                 val appearance = SchedulePreferences(context).appearance()
-                val background = appearance.card(item.course.name)
-                setInt(R.id.widget_row, "setBackgroundColor", (background and 0x00ffffff) or (appearance.opacity * 255 / 100 shl 24))
-                listOf(R.id.widget_time, R.id.widget_course, R.id.widget_location).forEach { setTextColor(it, readableColor(background)) }
+                val background = phaseColor(appearance.card(item.course.name), phase)
+                val fade = phaseAlpha(phase, appearance.pastCourseOpacity)
+                setInt(R.id.widget_makeup_corner, "setImageAlpha", (255 * fade).toInt())
+                if (item.course.isMakeup) {
+                    // Draw the asymmetric corners directly, including on older outline-clipping implementations.
+                    setInt(R.id.widget_row_color, "setBackgroundColor", android.graphics.Color.TRANSPARENT)
+                    setImageViewResource(R.id.widget_row_color, R.drawable.widget_makeup_fill)
+                    setInt(R.id.widget_row_color, "setColorFilter", background or 0xff000000.toInt())
+                    setInt(R.id.widget_row_color, "setImageAlpha", (appearance.opacity * 255 / 100 * fade).toInt())
+                } else {
+                    setImageViewResource(R.id.widget_row_color, 0)
+                    setInt(R.id.widget_row_color, "setImageAlpha", 255)
+                    setInt(R.id.widget_row_color, "setBackgroundColor", (background and 0x00ffffff) or ((appearance.opacity * 255 / 100 * fade).toInt() shl 24))
+                }
+                val textColor = (readableColor(background) and 0x00ffffff) or ((255 * fade).toInt() shl 24)
+                listOf(R.id.widget_time, R.id.widget_course, R.id.widget_location).forEach { setTextColor(it, textColor) }
                 setTextViewText(
                     R.id.widget_time,
                     "${item.start.toLocalTime()}–${item.end.toLocalTime()}",

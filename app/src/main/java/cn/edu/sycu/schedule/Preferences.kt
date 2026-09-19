@@ -59,7 +59,10 @@ class SchedulePreferences(context: Context) {
             return json.keys().asSequence().associateWith { json.getInt(it) }
         }
         set(value) { prefs.edit().putString("card_colors", org.json.JSONObject(value).toString()).apply() }
-    fun appearance() = Appearance(themeColor, widgetOpacity, cardColors)
+    var pastCourseOpacity: Int
+        get() = prefs.getInt("past_course_opacity", 60).coerceIn(0, 100)
+        set(value) { prefs.edit().putInt("past_course_opacity", value.coerceIn(0, 100)).apply() }
+    fun appearance() = Appearance(themeColor, widgetOpacity, cardColors, pastCourseOpacity)
     var rules: List<CourseRule>
         get() = runCatching { RuleCodec.decode(prefs.getString("course_rules", "[]")!!) }.getOrDefault(emptyList())
         set(value) { prefs.edit().putString("course_rules", RuleCodec.encode(value)).apply() }

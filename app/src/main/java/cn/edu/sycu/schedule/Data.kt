@@ -124,6 +124,7 @@ data class Occurrence(
 )
 
 fun occurrences(t: Timetable, c: Course): List<Occurrence> {
+    if (c.isMakeup) return makeupOccurrences(t, c)
     val lessonTimes = timesFor(t)
     val p = c.periodList()
     require(p.all { it <= lessonTimes.size && lessonTimes[it - 1].first.isNotBlank() }) {
@@ -187,11 +188,14 @@ abstract class ScheduleDao {
     @Query("SELECT * FROM Timetable ORDER BY year DESC,name")
     abstract fun timetables(): Flow<List<Timetable>>
 
-    @Query("SELECT * FROM Course WHERE deleted=0 ORDER BY weekday,name")
+    @Query("SELECT * FROM Course WHERE deleted=0 ORDER BY rowid")
     abstract fun courses(): Flow<List<Course>>
 
-    @Query("SELECT * FROM Course WHERE timetableId=:id")
+    @Query("SELECT * FROM Course WHERE timetableId=:id ORDER BY rowid")
     abstract suspend fun allCourses(id: String): List<Course>
+
+    @Query("DELETE FROM Course") abstract suspend fun clearAllCourses()
+    @Query("DELETE FROM Timetable") abstract suspend fun clearAllTables()
 
     @Upsert abstract suspend fun save(t: Timetable)
 
@@ -202,6 +206,13 @@ abstract class ScheduleDao {
     @Query("DELETE FROM Course WHERE timetableId=:id") abstract suspend fun clearCourses(id: String)
 
     @Query("DELETE FROM Timetable WHERE id=:id") abstract suspend fun removeTable(id: String)
+
+    @Transaction
+    open suspend fun moveOccurrence(t: Timetable, c: Course, week: Int, group: List<Int>, day: Int, start: Int) {
+        val current = allCourses(t.id).firstOrNull { it.id == c.id && !it.deleted }
+        require(current == c) { "课程已变更，请重新拖动" }
+        save(moveLesson(t, c, week, group, day, start))
+    }
 
     @Transaction
     open suspend fun importSchedule(data: ImportedSchedule) {

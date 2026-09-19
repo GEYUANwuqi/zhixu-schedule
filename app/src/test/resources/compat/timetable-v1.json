@@ -1,0 +1,1 @@
+{"format":"zhixu-schedule","version":1,"timetable":{"name":"旧课表交换文件","year":2026,"semester":1,"start":"2026-08-24","weekCount":20,"times":[]},"courses":[{"name":"数学","teacher":"测试教师","room":"B101","weekday":1,"periods":"3,4","weeks":"4,6","note":"旧数据"}]}

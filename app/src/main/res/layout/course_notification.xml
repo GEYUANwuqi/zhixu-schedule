@@ -1,0 +1,9 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+    <TextView android:id="@+id/notification_title" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:textAppearance="@style/TextAppearance.Compat.Notification.Title" android:textSize="14sp" android:includeFontPadding="false" android:maxLines="1" android:ellipsize="end" />
+    <TextView android:id="@+id/notification_time" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="2dp" android:textAppearance="@style/TextAppearance.Compat.Notification" android:textSize="12sp" android:includeFontPadding="false" android:maxLines="1" android:ellipsize="end" />
+    <TextView android:id="@+id/notification_location" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="2dp" android:textAppearance="@style/TextAppearance.Compat.Notification" android:textSize="12sp" android:includeFontPadding="false" android:maxLines="1" android:ellipsize="end" />
+</LinearLayout>

@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <string name="active_table">autumn</string>
+    <boolean name="widget_large" value="true" />
+    <boolean name="room" value="false" />
+    <boolean name="teacher" value="true" />
+    <boolean name="weeks" value="false" />
+    <boolean name="periods" value="true" />
+    <boolean name="note" value="true" />
+    <boolean name="auto_check_updates" value="true" />
+    <int name="theme_color" value="-1234567" />
+    <int name="widget_opacity" value="73" />
+    <string name="card_colors">{"数学":-7654321}</string>
+    <string name="course_rules">[{"matchField":"课程名","matchValue":"数学","name":"","teacher":"","room":"A320","weekday":0,"periods":"","weeks":"","note":""},{"matchField":"教室","matchValue":"G411","name":"","teacher":"","room":"建工4楼","weekday":0,"periods":"","weeks":"","note":""}]</string>
+</map>

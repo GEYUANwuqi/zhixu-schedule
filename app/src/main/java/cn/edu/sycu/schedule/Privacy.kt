@@ -15,7 +15,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 
 object PrivacyConsent {
-    const val VERSION = 1
+    const val VERSION = 2
     fun accepted(context: Context) = context.getSharedPreferences("privacy", Context.MODE_PRIVATE).getInt("version", 0) == VERSION
     fun accept(context: Context): Boolean = context.getSharedPreferences("privacy", Context.MODE_PRIVATE).edit().putInt("version", VERSION).commit()
 }
@@ -30,8 +30,9 @@ const val PRIVACY_TEXT = """欢迎使用知序课表。请阅读以下隐私说�
 2. 登录与同步
 仅在你操作登录、同步时连接服务提供方。账号、密码和验证码在其真实登录页面中提交，应用不保存密码；必要登录凭证加密保存在本机，用于后续同步，可在设置中清除。服务提供方按其自身规则处理收到的信息。
 
-3. 文件、日历与小组件
+3. 文件、日历、小组件与通知
 选取图片或导入导出文件由你主动操作。日历权限仅用于写入本课表专用日历，并替换该日历中的旧课程。小组件会在桌面显示课程信息；导出文件和截图可能包含教师、地点等个人信息，请谨慎分享。
+课程通知默认关闭，开启后会在通知栏显示课程信息，可能出现在锁屏；可自行选择提醒字段。通知和准时提醒权限仅用于课程提醒，可随时关闭。
 
 4. 更新与反馈
 检查更新时连接 GitHub 获取正式版本和更新日志；启动检查默认关闭，可自行开启。点击前往更新会在浏览器中打开发布页和安装包下载链接，下载由浏览器处理。项目与反馈链接通过浏览器打开；提交反馈前，请确认提交的信息中没有密码、登录凭证等不希望公开的个人信息。

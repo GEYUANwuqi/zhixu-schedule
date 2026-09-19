@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <string name="active_table">autumn</string>
+    <boolean name="widget_large" value="true" />
+    <boolean name="room" value="false" />
+    <boolean name="teacher" value="true" />
+    <boolean name="weeks" value="false" />
+    <boolean name="periods" value="true" />
+    <boolean name="note" value="true" />
+    <int name="theme_color" value="-1234567" />
+</map>

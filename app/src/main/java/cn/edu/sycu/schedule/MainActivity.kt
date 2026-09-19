@@ -15,6 +15,10 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -54,16 +58,18 @@ class MainActivity : ComponentActivity() {
         setContent {
             var consented by remember { mutableStateOf(PrivacyConsent.accepted(this@MainActivity)) }
             var consentError by remember { mutableStateOf(false) }
-            var themeColor by remember { mutableIntStateOf(SchedulePreferences(this@MainActivity).themeColor) }
+            val backupRevision = BackupStore.revision.intValue
+            var themeColor by remember(backupRevision) { mutableIntStateOf(SchedulePreferences(this@MainActivity).themeColor) }
             var appearanceVersion by remember { mutableIntStateOf(0) }
-            val appearance = remember(themeColor, appearanceVersion) { SchedulePreferences(this@MainActivity).appearance() }
+            val appearance = remember(themeColor, appearanceVersion, backupRevision) { SchedulePreferences(this@MainActivity).appearance() }
             CompositionLocalProvider(LocalAppearance provides appearance) {
             MaterialTheme(
                 colorScheme = appearance.scheme()
             ) {
                 if (consented) {
                     StartupUpdateCheck()
-                    App(openTodayVersion, onThemeColor = { themeColor = it }, onAppearance = { appearanceVersion++ })
+                    key(backupRevision) { App(openTodayVersion, onThemeColor = { themeColor = it }, onAppearance = { appearanceVersion++ }) }
+                    BackupRecoveryGate()
                 } else {
                     PrivacyGate(onAgree = {
                         if (PrivacyConsent.accept(this@MainActivity)) {
@@ -117,20 +123,24 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}, onAppearanc
     val screenAspect = metrics.widthPixels.toFloat() / metrics.heightPixels
     var activeId by remember { mutableStateOf(preferences.activeId) }
     val table = tables.find { it.id == activeId } ?: tables.firstOrNull()
-    val courses = allCourses.filter { it.timetableId == table?.id }
+    val makeupRevision = MakeupStore.revision.intValue
+    val overlays = remember(table, makeupRevision) { table?.let { MakeupStore.courses(context, it) } ?: emptyList() }
+    val courses = allCourses.filter { it.timetableId == table?.id } + (table?.let { t -> overlays.filter { weekOn(t, LocalDate.parse(it.id.substringAfterLast(':'))) in 1..t.weekCount } } ?: emptyList())
     // Feeds the widget preview in settings; recomputed only when the timetable or data changes.
     val todayRows =
-        remember(table?.id, table?.start, table?.weekCount, allCourses, currentDate) {
+        remember(table, allCourses, currentDate, overlays) {
             table?.let { t ->
-                todayLessons(t, allCourses.filter { it.timetableId == t.id }, currentDate)
+                todayLessons(t, allCourses.filter { it.timetableId == t.id } + overlays, currentDate)
             } ?: emptyList()
         }
     var settings by remember { mutableStateOf(false) }
-    BackHandler(settings) { settings = false }
+    val settingsNavigation = remember { SettingsNavigation() }
+    BackHandler(settings) { if (settingsNavigation.section.value != null) settingsNavigation.back() else settings = false }
     var pendingSync by remember { mutableStateOf(false) }
     var tableEditor by remember { mutableStateOf<Timetable?>(null) }
     var courseEditor by remember { mutableStateOf<Course?>(null) }
-    var detail by remember { mutableStateOf<Course?>(null) }
+    var makeupEditor by remember { mutableStateOf<Makeup?>(null) }
+    var detail by remember { mutableStateOf<List<LessonBlock>?>(null) }
     var login by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -248,10 +258,13 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}, onAppearanc
         currentDate = today()
         table?.let { week = weekOn(it, currentDate).coerceIn(1, it.weekCount) }
         TodayWidget.refresh(context)
+        CourseAlerts.request(context)
     }
     LaunchedEffect(table?.id, allCourses, tables) {
+        if (BackupStore.restoring) return@LaunchedEffect
         if (table != null) preferences.activeId = table.id
         TodayWidget.refresh(context)
+        CourseAlerts.request(context)
     }
     fun syncSchool() {
         pendingSync = true
@@ -311,8 +324,8 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}, onAppearanc
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    TextButton(onClick = { settings = !settings }) {
-                        Text(if (settings) "课表" else "设置")
+                    TextButton(onClick = { if (settings && settingsNavigation.section.value != null) settingsNavigation.back() else settings = !settings }) {
+                        Text(if (!settings) "设置" else if (settingsNavigation.section.value != null) "返回设置" else "课表")
                     }
                 }
                 if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -331,6 +344,7 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}, onAppearanc
                             ScheduleSettings(
                                 tables,
                                 table,
+                                allCourses,
                                 busy,
                                 authenticated,
                                 display,
@@ -338,6 +352,7 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}, onAppearanc
                                     display = it
                                     preferences.save(it)
                                 },
+                                navigation = settingsNavigation,
                                 themeColor = themeColor,
                                 onThemeColor = { themeColor = it; preferences.themeColor = it; onThemeColor(it); TodayWidget.refresh(context) },
                                 courseNames = allCourses.map { it.name }.distinct().sorted(),
@@ -488,11 +503,6 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}, onAppearanc
                                     Modifier.weight(1f),
                                     style = MaterialTheme.typography.titleLarge,
                                 )
-                                TextButton(
-                                    onClick = { courseEditor = Course(timetableId = t.id) }
-                                ) {
-                                    Text("＋ 课程")
-                                }
                             }
                             Row(
                                 Modifier.fillMaxWidth(),
@@ -540,13 +550,24 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}, onAppearanc
                                     Modifier.fillMaxSize(),
                                     currentDate,
                                     display,
+                                    onStackClick = {
+                                        if (android.os.Build.VERSION.SDK_INT < 31) backdrop = runCatching { blurredBackdrop(view) }.getOrNull()
+                                        detail = it
+                                    },
                                     onWeekSwipe = { delta ->
                                         week = (week + delta).coerceIn(1, t.weekCount)
+                                    },
+                                    onMove = { c, group, day, start ->
+                                        task {
+                                            dao.moveOccurrence(t, c, shownWeek, group, day, start)
+                                            TodayWidget.refresh(context)
+                                            ""
+                                        }
                                     },
                                 ) {
                                     if (android.os.Build.VERSION.SDK_INT < 31)
                                         backdrop = runCatching { blurredBackdrop(view) }.getOrNull()
-                                    detail = it
+                                    detail = listOf(LessonBlock(it, it.periodList(), 0))
                                 }
                             }
                             Text(
@@ -638,22 +659,24 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}, onAppearanc
             },
         )
     }
-    detail?.let { c ->
-        CourseDetail(
-            c,
+    detail?.let { blocks ->
+        CourseDetailStack(
+            blocks,
             table!!,
             onClose = { detail = null },
-            onEdit = {
+            onEdit = { c ->
                 detail = null
-                courseEditor = c
+                if (c.isMakeup) makeupEditor = MakeupStore.read(context).firstOrNull { "makeup:${it.id}:${it.date}" == c.id }
+                else courseEditor = c
             },
-            onDelete = {
+            onDelete = { c ->
                 detail = null
                 confirmed =
-                    "删除「${c.name}」？同步课程的删除会在后续同步时保留。" to
+                    (if (c.isMakeup) "撤销这次「${c.name}」补课？原课程不受影响。" else "删除「${c.name}」？同步课程的删除会在后续同步时保留。") to
                         {
                             task {
-                                if (c.sourceId == null) dao.removeCourse(c.id)
+                                if (c.isMakeup) MakeupStore.remove(context, c.id.removePrefix("makeup:").substringBefore(':'))
+                                else if (c.sourceId == null) dao.removeCourse(c.id)
                                 else dao.save(c.copy(deleted = true))
                                 "课程已删除"
                             }
@@ -661,6 +684,7 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}, onAppearanc
             },
         )
     }
+    makeupEditor?.let { entry -> table?.let { t -> MakeupEditor(t, allCourses, entry) { makeupEditor = null } } }
     if (login)
         LoginDialog(
             onClose = {
@@ -678,249 +702,6 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}, onAppearanc
         )
 }
 
-@Composable
-fun ScheduleGrid(
-    t: Timetable,
-    courses: List<Course>,
-    week: Int,
-    modifier: Modifier,
-    currentDate: LocalDate = today(),
-    display: CardDisplay = CardDisplay(),
-    onWeekSwipe: (Int) -> Unit = {},
-    onClick: (Course) -> Unit,
-) {
-    var selectedDay by remember { mutableStateOf<Int?>(null) }
-    var selectedPeriod by remember { mutableStateOf<Int?>(null) }
-    val visible = courses.filter { week == 0 || week in it.weekList() }
-    val dayToday =
-        if (week != 0 && week == weekOn(t, currentDate)) currentDate.dayOfWeek.value else null
-    val lessonTimes = timesFor(t)
-    val maxPeriod = maxOf(10, visible.maxOfOrNull { it.periodList().max() } ?: 10)
-    BoxWithConstraints(
-        modifier.pointerInput(onWeekSwipe) {
-            var drag = 0f
-            detectHorizontalDragGestures(
-                onDragStart = { drag = 0f },
-                onHorizontalDrag = { change, amount ->
-                    drag += amount
-                    change.consume()
-                },
-                onDragCancel = { drag = 0f },
-                onDragEnd = {
-                    if (kotlin.math.abs(drag) > 48.dp.toPx()) onWeekSwipe(if (drag < 0) 1 else -1)
-                },
-            )
-        }
-    ) {
-        val headerHeight = 32.dp
-        val rowHeight = ((maxHeight - headerHeight) / maxPeriod).coerceIn(36.dp, 72.dp)
-        val labelWidth = 30.dp
-        val dayWidth = (maxWidth - labelWidth) / 7
-        Row(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-            Column(Modifier.width(labelWidth)) {
-                Spacer(Modifier.height(headerHeight))
-                for (p in 1..maxPeriod) {
-                    Column(
-                        Modifier.height(rowHeight)
-                            .fillMaxWidth()
-                            .background(if (selectedPeriod == p) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
-                            .clickable { selectedPeriod = if (selectedPeriod == p) null else p },
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        Text(
-                            "$p",
-                            fontSize = 10.sp,
-                            lineHeight = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                        )
-                        lessonTimes.getOrNull(p - 1)?.let {
-                            Text(it.first, fontSize = 7.sp, lineHeight = 9.sp)
-                            Text(it.second, fontSize = 7.sp, lineHeight = 9.sp)
-                        }
-                    }
-                }
-            }
-            for (day in 1..7) {
-                val highlight = selectedDay == day || dayToday == day
-                Column(
-                    Modifier.width(dayWidth).semantics {
-                        contentDescription = "星期$day"
-                        selected = dayToday == day
-                    }
-                ) {
-                    Column(
-                        Modifier.height(headerHeight)
-                            .fillMaxWidth()
-                            .background(if (highlight) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
-                            .clickable { selectedDay = if (selectedDay == day) null else day },
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        Text(
-                            "周${"一二三四五六日"[day-1]}",
-                            fontSize = 10.sp,
-                            lineHeight = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                        )
-                        if (week > 0)
-                            Text(
-                                firstWeekMonday(t)
-                                    .plusDays(((week - 1) * 7 + day - 1).toLong())
-                                    .toString()
-                                    .substring(5),
-                                fontSize = 8.sp,
-                                lineHeight = 10.sp,
-                            )
-                    }
-                    Box(Modifier.height(rowHeight * maxPeriod).fillMaxWidth()) {
-                        Column {
-                            for (p in 1..maxPeriod) Box(
-                                Modifier.height(rowHeight)
-                                    .fillMaxWidth()
-                                    .background(
-                                        if (highlight || selectedPeriod == p) MaterialTheme.colorScheme.surfaceVariant
-                                        else Color.Transparent
-                                    )
-                                    .border(.5.dp, MaterialTheme.colorScheme.outlineVariant)
-                            )
-                        }
-                        val items =
-                            visible
-                                .filter { it.weekday == day }
-                                .sortedBy { it.periodList().first() }
-                        val lanes = mutableListOf<MutableList<Course>>()
-                        items.forEach { c ->
-                            val lane =
-                                lanes.firstOrNull { l ->
-                                    l.none { other ->
-                                        c.periodList()
-                                            .intersect(other.periodList().toSet())
-                                            .isNotEmpty()
-                                    }
-                                } ?: mutableListOf<Course>().also { lanes.add(it) }
-                            lane.add(c)
-                        }
-                        lanes.forEachIndexed { index, lane ->
-                            lane.forEach { c ->
-                                val groups = mutableListOf<MutableList<Int>>()
-                                c.periodList().forEach {
-                                    if (groups.isEmpty() || groups.last().last() + 1 != it)
-                                        groups.add(mutableListOf(it))
-                                    else groups.last().add(it)
-                                }
-                                groups.forEach { group ->
-                                    Card(
-                                        Modifier.offset(
-                                                x = dayWidth * index / lanes.size,
-                                                y = rowHeight * (group.first() - 1),
-                                            )
-                                            .width(dayWidth / lanes.size)
-                                            .height(rowHeight * group.size)
-                                            .padding(1.dp)
-                                            .clickable { onClick(c) },
-                                        shape = RoundedCornerShape(5.dp),
-                                        colors =
-                                            CardDefaults.cardColors(
-                                                containerColor = Color(LocalAppearance.current.card(c.name)),
-                                                contentColor = Color(readableColor(LocalAppearance.current.card(c.name)))
-                                            ),
-                                    ) {
-                                        Column(
-                                            Modifier.padding(horizontal = 2.dp, vertical = 3.dp)
-                                                .verticalScroll(rememberScrollState()),
-                                            verticalArrangement = Arrangement.spacedBy(2.dp),
-                                        ) {
-                                            Text(
-                                                c.name,
-                                                fontSize = 10.sp,
-                                                lineHeight = 11.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                            )
-                                            if (display.room && c.room.isNotBlank())
-                                                Text(
-                                                    roomLabel(c.room),
-                                                    fontSize = 8.sp,
-                                                    lineHeight = 9.sp,
-                                                )
-                                            if (display.teacher && c.teacher.isNotBlank())
-                                                Text(c.teacher, fontSize = 8.sp, lineHeight = 9.sp)
-                                            if (display.periods)
-                                                Text(
-                                                    "${c.periods}节",
-                                                    fontSize = 8.sp,
-                                                    lineHeight = 9.sp,
-                                                )
-                                            if (display.note && c.note.isNotBlank())
-                                                Text(c.note, fontSize = 8.sp, lineHeight = 9.sp)
-                                            if (display.weeks)
-                                                Text(
-                                                    weekLabel(c.weekList()),
-                                                    fontSize = 7.sp,
-                                                    lineHeight = 8.sp,
-                                                )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CourseDetail(
-    c: Course,
-    t: Timetable,
-    onClose: () -> Unit,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    var shown by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { shown = true }
-    val scale by
-        animateFloatAsState(
-            if (shown) 1f else .88f,
-            tween(170, easing = FastOutSlowInEasing),
-            label = "detailScale",
-        )
-    val alpha by animateFloatAsState(if (shown) 1f else 0f, tween(130), label = "detailAlpha")
-    Dialog(onDismissRequest = onClose) {
-        Surface(
-            Modifier.fillMaxWidth().scale(scale).alpha(alpha),
-            shape = RoundedCornerShape(26.dp),
-            color = MaterialTheme.colorScheme.surface,
-        ) {
-            Column(
-                Modifier.padding(24.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Text(c.name, style = MaterialTheme.typography.headlineSmall)
-                if (c.room.isNotBlank()) Text(roomLabel(c.room))
-                if (c.teacher.isNotBlank()) Text(c.teacher)
-                Text("周${"一二三四五六日"[c.weekday-1]} · ${c.periods}节")
-                Text("第${c.weeks}周")
-                if (c.note.isNotBlank()) Text(c.note)
-                val dates = runCatching { occurrences(t, c) }.getOrDefault(emptyList())
-                Text(
-                    dates.joinToString("\n") {
-                        "${it.date}  ${it.start.toLocalTime()}–${it.end.toLocalTime()}"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Row {
-                    TextButton(onClick = onEdit) { Text("编辑") }
-                    TextButton(onClick = onDelete) { Text("删除") }
-                    Spacer(Modifier.weight(1f))
-                    TextButton(onClick = onClose) { Text("关闭") }
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun TableEditor(t: Timetable, onClose: () -> Unit, onSave: (Timetable) -> Unit) {

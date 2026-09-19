@@ -94,10 +94,11 @@ fun AboutPage() {
     Text(context.applicationInfo.loadLabel(context.packageManager).toString(), style = MaterialTheme.typography.headlineSmall)
     Text("版本 ${BuildConfig.VERSION_NAME}（${BuildConfig.VERSION_CODE}）")
     Text("一款独立的课表应用。")
+    SettingsSection("隐私与许可")
     OutlinedButton(onClick = { document = "隐私协议" to PRIVACY_TEXT }) { Text("隐私协议") }
     OutlinedButton(onClick = { readLicense("licenses/PROJECT-LICENSE.txt") }) { Text("项目许可证 · 自定义部分开放") }
     Text("第三方内容适用其各自许可证。", style = MaterialTheme.typography.bodySmall)
-    OutlinedButton(onClick = { open(PROJECT_URL) }) { Text("项目地址") }
+    SettingsSection("版本更新")
     OutlinedButton(enabled = !checking, onClick = {
         checking = true; result = null
         scope.launch {
@@ -118,6 +119,8 @@ fun AboutPage() {
         if (r.tag == null) Text(r.message)
         else UpdateDialog(r) { result = null }
     }
+    SettingsSection("项目与反馈")
+    OutlinedButton(onClick = { open(PROJECT_URL) }) { Text("项目地址") }
     OutlinedButton(onClick = { open("$PROJECT_URL/issues") }) { Text("反馈问题") }
     notice?.let { text -> Text(text, color = MaterialTheme.colorScheme.error) }
     document?.let { (title, text) ->
