@@ -1,0 +1,74 @@
+name: Bug 报告
+description: 报告功能异常、显示错误或崩溃，帮助我们复现和修复。
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！Issue 内容公开可见，请勿提交密码、登录凭证、个人课表或其他不希望公开的信息。截图请先遮挡姓名、账号等个人信息，不要上传完整备份、请求日志或认证文件。
+  - type: checkboxes
+    id: preparation
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我已搜索现有 Issue，没有找到相同问题。
+          required: true
+        - label: 我已检查内容及附件，没有包含不希望公开的个人信息或登录凭证。
+          required: true
+  - type: input
+    id: version
+    attributes:
+      label: 应用版本
+      description: 可在“设置 → 关于”中查看。
+      placeholder: 例如 0.2.0
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: 设备与系统
+      description: 填写手机型号、Android 版本及系统版本；不需要设备序列号。
+      placeholder: 例如 某品牌某型号，Android 15，系统版本……
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 从哪个页面开始，依次点击或滑动了什么？如果需要示例数据，请使用虚构内容。
+      placeholder: |
+        1. 打开……
+        2. 点击……
+        3. 出现……
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期结果
+      description: 你认为应该发生什么？
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际结果
+      description: 实际发生了什么？如有界面提示，请仅填写不含个人信息的提示内容。
+    validations:
+      required: true
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: 出现频率
+      options:
+        - 每次都能复现
+        - 偶尔出现
+        - 只出现过一次
+        - 尚不确定
+    validations:
+      required: true
+  - type: textarea
+    id: additional
+    attributes:
+      label: 补充说明或截图（可选）
+      description: 可补充是否在升级后出现、相关设置，以及已遮挡个人信息的截图或录屏。
