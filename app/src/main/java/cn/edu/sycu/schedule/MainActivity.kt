@@ -137,6 +137,7 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}, onAppearanc
     val settingsNavigation = remember { SettingsNavigation() }
     BackHandler(settings) { if (settingsNavigation.section.value != null) settingsNavigation.back() else settings = false }
     var pendingSync by remember { mutableStateOf(false) }
+    var syncProposal by remember { mutableStateOf<SyncProposal?>(null) }
     var tableEditor by remember { mutableStateOf<Timetable?>(null) }
     var courseEditor by remember { mutableStateOf<Course?>(null) }
     var makeupEditor by remember { mutableStateOf<Makeup?>(null) }
@@ -278,13 +279,24 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}, onAppearanc
                 }
             val updated = t.copy(times = data.getJSONArray("times").toString())
             val rules = preferences.rules
-            val incoming = parseCourses(data, updated).map { applyCourseRules(it, rules, updated) }
-            dao.merge(updated, incoming)
-            activeId = t.id
+            val rows = parseCourses(data, updated).map { previewCourseRules(it, rules, updated) }
+            syncProposal = SyncProposal(table, updated, dao.allCourses(t.id), rows)
             pendingSync = false
-            settings = false
-            "已同步 ${incoming.size} 项课程安排；保留手动课程与本地修改"
+            ""
         }
+    }
+    syncProposal?.let { proposal ->
+        SyncPreviewDialog(proposal, busy, cancel = { syncProposal = null }, confirm = {
+            task {
+                dao.confirmSync(proposal)
+                activeId = proposal.table.id
+                syncProposal = null
+                settings = false
+                TodayWidget.refresh(context)
+                CourseAlerts.request(context)
+                "已同步 ${proposal.rows.size} 项课程安排；保留手动课程与本地修改"
+            }
+        })
     }
     val blur by animateDpAsState(if (detail != null) 8.dp else 0.dp, tween(170), label = "backdrop")
     Surface(

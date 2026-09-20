@@ -194,6 +194,17 @@ abstract class ScheduleDao {
     @Query("SELECT * FROM Course WHERE timetableId=:id ORDER BY rowid")
     abstract suspend fun allCourses(id: String): List<Course>
 
+    @Query("SELECT * FROM Timetable WHERE id=:id")
+    abstract suspend fun findTable(id: String): Timetable?
+
+    @Transaction
+    open suspend fun confirmSync(proposal: SyncProposal) {
+        require(findTable(proposal.table.id) == proposal.previousTable && allCourses(proposal.table.id) == proposal.previous) {
+            "课表已变更，请取消并重新获取同步预览"
+        }
+        merge(proposal.table, proposal.rows.map { it.result })
+    }
+
     @Query("DELETE FROM Course") abstract suspend fun clearAllCourses()
     @Query("DELETE FROM Timetable") abstract suspend fun clearAllTables()
 
