@@ -1,4 +1,4 @@
-name: Bug 报告
+name: 🐞 Bug 报告
 description: 报告功能异常、显示错误或崩溃，帮助我们复现和修复。
 title: "[Bug] "
 body:
