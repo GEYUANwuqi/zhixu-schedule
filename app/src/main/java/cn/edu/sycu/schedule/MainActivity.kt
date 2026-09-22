@@ -125,13 +125,16 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}, onAppearanc
     var activeId by remember { mutableStateOf(preferences.activeId) }
     val table = tables.find { it.id == activeId } ?: tables.firstOrNull()
     val makeupRevision = MakeupStore.revision.intValue
+    val holidayRevision = HolidayStore.revision.intValue
+    val holidayDates = remember(table, holidayRevision) { table?.let { HolidayStore.dates(context, it.id) } ?: emptySet() }
+    val holidayKeys = remember(table, holidayRevision) { table?.let { HolidayStore.keys(context, it.id) } ?: emptySet() }
     val overlays = remember(table, makeupRevision) { table?.let { MakeupStore.courses(context, it) } ?: emptyList() }
     val courses = allCourses.filter { it.timetableId == table?.id } + (table?.let { t -> overlays.filter { weekOn(t, LocalDate.parse(it.id.substringAfterLast(':'))) in 1..t.weekCount } } ?: emptyList())
     // Feeds the widget preview in settings; recomputed only when the timetable or data changes.
     val todayRows =
-        remember(table, allCourses, currentDate, overlays) {
+        remember(table, allCourses, currentDate, overlays, holidayDates, holidayKeys) {
             table?.let { t ->
-                todayLessons(t, allCourses.filter { it.timetableId == t.id } + overlays, currentDate)
+                if (currentDate in holidayDates) emptyList() else todayLessons(t, allCourses.filter { it.timetableId == t.id } + overlays, currentDate).filterNot { occurrenceKey(it) in holidayKeys }
             } ?: emptyList()
         }
     var settings by remember { mutableStateOf(false) }
@@ -564,6 +567,8 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}, onAppearanc
                                     Modifier.fillMaxSize(),
                                     currentDate,
                                     display,
+                                    holidayDates = holidayDates,
+                                    holidayKeys = holidayKeys,
                                     onStackClick = {
                                         if (android.os.Build.VERSION.SDK_INT < 31) backdrop = runCatching { blurredBackdrop(view) }.getOrNull()
                                         detail = it
@@ -677,6 +682,20 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}, onAppearanc
         CourseDetailStack(
             blocks,
             table!!,
+            isResting = { block ->
+                val date = firstWeekMonday(table).plusDays(((week - 1) * 7 + block.course.weekday - 1).toLong())
+                date in holidayDates || holidayKey(table, block.course, date, block.periods) in holidayKeys
+            },
+            onToggleRest = if (week < 1) null else { block ->
+                val date = firstWeekMonday(table).plusDays(((week - 1) * 7 + block.course.weekday - 1).toLong())
+                val key = holidayKey(table, block.course, date, block.periods)
+                task {
+                    val selected = HolidayStore.keys(context, table.id) + HolidayStore.dates(context, table.id)
+                        .flatMap { day -> todayLessons(table, courses, day).map(::occurrenceKey) }
+                    HolidayStore.save(context, table.id, if (key in selected) selected - key else selected + key)
+                    if (key in selected) "已恢复这次课程" else "这次课程已设为休息"
+                }
+            },
             onClose = { detail = null },
             onEdit = { c ->
                 detail = null

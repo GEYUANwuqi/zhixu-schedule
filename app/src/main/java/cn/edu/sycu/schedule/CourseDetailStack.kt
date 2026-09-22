@@ -30,7 +30,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.coroutineScope
 
 @Composable
-internal fun CourseDetailStack(blocks: List<LessonBlock>, table: Timetable, onClose: () -> Unit, onEdit: (Course) -> Unit, onDelete: (Course) -> Unit) {
+internal fun CourseDetailStack(blocks: List<LessonBlock>, table: Timetable, onClose: () -> Unit, onEdit: (Course) -> Unit, onDelete: (Course) -> Unit,
+    isResting: (LessonBlock) -> Boolean = { false }, onToggleRest: ((LessonBlock) -> Unit)? = null) {
     var index by remember(blocks) { mutableIntStateOf(0) }
     var busy by remember { mutableStateOf(false) }
     val movement = remember { Animatable(0f) }
@@ -85,11 +86,12 @@ internal fun CourseDetailStack(blocks: List<LessonBlock>, table: Timetable, onCl
     Dialog(onDismissRequest = onClose) {
         Box(Modifier.fillMaxWidth().animateContentSize(tween(220)).graphicsLayer { alpha = entrance.value; scaleX = .9f + .1f * entrance.value; scaleY = scaleX }) {
             if (blocks.size > 1) {
-                val next = blocks[(index + 1) % blocks.size].course
+                val nextBlock = blocks[(index + 1) % blocks.size]
+                val next = nextBlock.course
                 Surface(Modifier.fillMaxWidth().padding(horizontal = 12.dp).graphicsLayer {
                     translationY = (1f - opacity.value) * 12.dp.toPx()
                     scaleX = 1f + (1f - opacity.value) * .03f
-                }.makeupCorner(next.isMakeup), shape = lessonShape(next.isMakeup), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                }.makeupCorner(next.isMakeup, isResting(nextBlock)), shape = lessonShape(next.isMakeup || isResting(nextBlock)), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                     Text(next.name, Modifier.padding(horizontal = 16.dp, vertical = 8.dp), maxLines = 1, style = MaterialTheme.typography.titleSmall)
                 }
             }
@@ -98,7 +100,7 @@ internal fun CourseDetailStack(blocks: List<LessonBlock>, table: Timetable, onCl
                 alpha = opacity.value * (1f - kotlin.math.abs(drag) * .3f)
                 scaleX = .97f + .03f * opacity.value
                 scaleY = scaleX
-            }.makeupCorner(c.isMakeup).nestedScroll(overflowSwipe), shape = lessonShape(c.isMakeup), tonalElevation = 6.dp) {
+            }.makeupCorner(c.isMakeup, isResting(block)).nestedScroll(overflowSwipe), shape = lessonShape(c.isMakeup || isResting(block)), tonalElevation = 6.dp) {
                 Column(Modifier.heightIn(max = 680.dp).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     // Keep the swipe handle outside the scrolling body. The old parent
                     // detector lost every drag to verticalScroll before reaching slop.
@@ -116,7 +118,11 @@ internal fun CourseDetailStack(blocks: List<LessonBlock>, table: Timetable, onCl
                             if (kotlin.math.abs(distance) > threshold) cycle(if (distance > 0) 1 else -1) else settle()
                         })
                     }) {
-                        Text(c.name, style = MaterialTheme.typography.titleLarge)
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(c.name, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+                            FilledIconToggleButton(checked = isResting(block), enabled = onToggleRest != null,
+                                onCheckedChange = { onToggleRest?.invoke(block) }) { Text("休") }
+                        }
                         if (blocks.size > 1) Text("${index + 1}/${blocks.size} · 上下滑动切换课程", style = MaterialTheme.typography.labelSmall)
                         Text("周${"一二三四五六日"[c.weekday - 1]} ${block.periods.joinToString(",")}节  ${times.getOrNull(block.periods.first() - 1)?.first ?: ""}–${times.getOrNull(block.periods.last() - 1)?.second ?: ""}", style = MaterialTheme.typography.bodyMedium)
                     }

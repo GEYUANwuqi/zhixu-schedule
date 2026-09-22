@@ -144,6 +144,7 @@ fun ScheduleSettings(
                         Text("开学日期 ${it.start} · ${it.weekCount} 周")
                         OutlinedButton(onClick = addCourse) { Text("手动添加课程") }
                         MakeupManager(it, courses)
+                        HolidayManager(it, courses)
                     }
                     SettingsSection("卡片显示", "课程名称始终显示，以下显示偏好应用于所有课表。")
                     DisplaySwitch("地点", display.room) { onDisplay(display.copy(room = it)) }

@@ -152,7 +152,7 @@ open class TodayWidget : AppWidgetProvider() {
                     views.setTextViewText(R.id.widget_subtitle, table?.name ?: "知序")
                     views.setTextViewText(
                         R.id.widget_empty,
-                        if (table == null) "尚无课表，点击添加或同步" else "本日没有课程",
+                        if (table == null) "尚无课表，点击添加或同步" else "今天是假日哦~好好休息一下吧~",
                     )
                     val open =
                         PendingIntent.getActivity(
@@ -241,7 +241,10 @@ class TodayFactory(private val context: Context) : RemoteViewsService.RemoteView
                     val id = SchedulePreferences(context).activeId
                     val t = tables.find { it.id == id } ?: tables.firstOrNull()
                     date = today().plusDays(context.getSharedPreferences("widget-days", Context.MODE_PRIVATE).getInt("offset", 0).toLong())
-                    if (t == null) emptyList() else todayLessons(t, db.dao().allCourses(t.id) + MakeupStore.courses(context, t), date)
+                    if (t == null || date in HolidayStore.dates(context, t.id)) emptyList() else {
+                        val holidayKeys = HolidayStore.keys(context, t.id)
+                        todayLessons(t, db.dao().allCourses(t.id) + MakeupStore.courses(context, t), date).filterNot { occurrenceKey(it) in holidayKeys }
+                    }
                 } finally {
                     db.close()
                 }

@@ -60,17 +60,18 @@ object CourseAlerts {
         } finally { db.close() }
         val now = ZonedDateTime.now(schoolZone)
         val muted = table?.let { AlertPreferences(context).mutedNames(it.id) } ?: emptySet()
-        val plan = alertPlan(table, courses, options, now, muted)
+        val plan = alertPlan(table, courses, options, now, muted, table?.let { HolidayStore.dates(context, it.id) } ?: emptySet(), table?.let { HolidayStore.keys(context, it.id) } ?: emptySet())
         val open = PendingIntent.getActivity(context, 4200, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra("open_today", true), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         fun builder(channel: String) = NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_course_notification).setContentIntent(open).setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
         if (options.ongoing) {
             val current = plan.today.firstOrNull { !now.isBefore(it.start) && now.isBefore(it.end) }
             val next = plan.today.firstOrNull { it.start.isAfter(now) }
             val item = current ?: next
-            val title = when { table == null -> "今日课表 · 尚无课表"; current != null -> "正在上课 · ${current.course.name}"; next != null -> "下一节 · ${next.course.name}"; plan.today.isEmpty() -> "今日没有课程"; else -> "今日课程已结束" }
+            val title = when { table == null -> "今日课表 · 尚无课表"; plan.holiday -> "今天是假日哦~好好休息一下吧~"; current != null -> "正在上课 · ${current.course.name}"; next != null -> "下一节 · ${next.course.name}"; plan.today.isEmpty() -> "今日没有课程"; else -> "今日课程已结束" }
             val lines = item?.let { ongoingLines(it, current != null, now, options) } ?: ("点击查看课表" to "")
             val content = android.widget.RemoteViews(context.packageName, R.layout.course_notification).apply {
                 setTextViewText(R.id.notification_title, title)
+                setInt(R.id.notification_title, "setMaxLines", if (plan.holiday) 2 else 1)
                 setTextViewText(R.id.notification_time, lines.first)
                 setTextViewText(R.id.notification_location, lines.second)
                 setViewVisibility(R.id.notification_time, if (lines.first.isBlank()) android.view.View.GONE else android.view.View.VISIBLE)

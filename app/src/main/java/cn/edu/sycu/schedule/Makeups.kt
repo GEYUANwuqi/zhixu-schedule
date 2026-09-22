@@ -77,8 +77,8 @@ fun makeupOccurrences(t: Timetable, c: Course): List<Occurrence> {
     return occurrences(temporary, c.copy(id = c.id.removePrefix("makeup:"), weeks = "1")).map { it.copy(course = c, week = weekOn(t, date)) }
 }
 fun lessonShape(makeup: Boolean) = RoundedCornerShape(topStart = if (makeup) 0.dp else 5.dp, topEnd = 5.dp, bottomEnd = 5.dp, bottomStart = 5.dp)
-fun Modifier.makeupCorner(makeup: Boolean): Modifier = if (!makeup) this else drawWithContent {
+fun Modifier.makeupCorner(makeup: Boolean, holiday: Boolean = false): Modifier = if (!makeup && !holiday) this else drawWithContent {
     drawContent()
     val edge = 11.dp.toPx().coerceAtMost(size.width / 3)
-    drawPath(Path().apply { moveTo(0f, 0f); lineTo(edge, 0f); lineTo(0f, edge); close() }, Color(0xFFE34B4B))
+    drawPath(Path().apply { moveTo(0f, 0f); lineTo(edge, 0f); lineTo(0f, edge); close() }, Color(if (holiday) 0xFF39A66B else 0xFFE34B4B))
 }

@@ -5,6 +5,35 @@ import org.junit.Test
 import java.time.ZonedDateTime
 
 class AlertPlanTest {
+    @Test fun individualHolidayOnlySuppressesSelectedOccurrence() {
+        val english = course.copy(id = "english", name = "英语")
+        val all = todayLessons(table, listOf(course, english), now("10:10").toLocalDate())
+        val key = occurrenceKey(all.first { it.course.id == course.id })
+        assertEquals(key, holidayKey(table, course, now("10:10").toLocalDate(), listOf(3, 4)))
+        val partial = alertPlan(table, listOf(course, english), AlertOptions(reminders = true), now("10:10"), holidayKeys = setOf(key))
+        assertFalse(partial.holiday)
+        assertEquals(listOf("英语"), partial.today.map { it.course.name })
+        assertEquals(listOf("英语"), partial.due.map { it.course.name })
+        val complete = alertPlan(table, listOf(course, english), AlertOptions(reminders = true), now("10:10"), holidayKeys = all.map(::occurrenceKey).toSet())
+        assertTrue(complete.holiday)
+        assertTrue(complete.today.isEmpty())
+        assertTrue(alertPlan(table, emptyList(), AlertOptions(), now("10:10"), holidayKeys = setOf(key)).holiday)
+    }
+    @Test fun holidaysSuppressLessonsAndRemindersUntilMidnightWithoutChangingCourses() {
+        val date = now("10:10").toLocalDate()
+        val options = AlertOptions(ongoing = true, reminders = true)
+        val holiday = alertPlan(table, listOf(course), options, now("10:10"), holidayDates = setOf(date))
+        assertTrue(holiday.holiday)
+        assertTrue(holiday.today.isEmpty())
+        assertTrue(holiday.due.isEmpty())
+        assertEquals(now("00:00").plusDays(1).toInstant(), holiday.next.toInstant())
+        val restored = alertPlan(table, listOf(course), options, now("10:10"))
+        assertFalse(restored.holiday)
+        assertEquals(1, restored.due.size)
+        assertEquals(1, todayLessons(table, listOf(course), date).size)
+        assertFalse(alertPlan(table, listOf(course), options, now("10:10"), holidayDates = setOf(date.plusDays(1))).holiday)
+        assertFalse(alertPlan(null, emptyList(), options, now("10:10"), holidayDates = setOf(date)).holiday)
+    }
     @Test fun ongoingUsesHoursAndTwoIndependentRows() {
         assertEquals("59 分钟", countdownLabel(59))
         assertEquals("1 小时", countdownLabel(60))

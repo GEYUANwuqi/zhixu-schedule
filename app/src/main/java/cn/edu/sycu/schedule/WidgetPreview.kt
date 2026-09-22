@@ -75,7 +75,7 @@ fun WidgetPreview(
             if (lessons.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        if (table == null) "尚无课表，点击添加或同步" else "本日没有课程",
+                        if (table == null) "尚无课表，点击添加或同步" else "今天是假日哦~好好休息一下吧~",
                         color = Color(appearance.ink),
                         fontSize = 12.sp,
                     )

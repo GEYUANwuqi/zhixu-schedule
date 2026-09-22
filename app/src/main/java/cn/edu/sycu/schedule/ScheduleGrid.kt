@@ -26,6 +26,8 @@ fun ScheduleGrid(t: Timetable, courses: List<Course>, week: Int, modifier: Modif
     currentDate: LocalDate = today(), display: CardDisplay = CardDisplay(), onWeekSwipe: (Int) -> Unit = {},
     onMove: (Course, List<Int>, Int, Int) -> Unit = { _, _, _, _ -> }, selectableIds: Set<String> = emptySet(),
     selectionMode: Boolean = false, onDaySelect: (Int) -> Unit = {}, selectedDate: LocalDate? = null,
+    selectedDates: Set<LocalDate> = emptySet(), holidayDates: Set<LocalDate> = emptySet(),
+    holidayKeys: Set<String> = emptySet(),
     onStackClick: ((List<LessonBlock>) -> Unit)? = null, onClick: (Course) -> Unit,
 ) {
     var selectedDay by remember { mutableStateOf<Int?>(null) }
@@ -62,7 +64,8 @@ fun ScheduleGrid(t: Timetable, courses: List<Course>, week: Int, modifier: Modif
             }
             for (day in 1..7) {
                 val date = firstWeekMonday(t).plusDays(((week - 1) * 7 + day - 1).toLong())
-                val highlight = (week > 0 && date == currentDate) || if (selectionMode) date == selectedDate else selectedDay == day
+                val holiday = week > 0 && date in holidayDates
+                val highlight = (week > 0 && date == currentDate) || if (selectionMode) date == selectedDate || date in selectedDates else selectedDay == day
                 fun chooseDay() { if (selectionMode) onDaySelect(day) else selectedDay = if (selectedDay == day) null else day }
                 Column(Modifier.width(dayWidth).semantics { contentDescription = "星期$day"; selected = highlight }) {
                     Column(Modifier.height(32.dp).fillMaxWidth().background(if (highlight) MaterialTheme.colorScheme.primaryContainer else Color.Transparent).clickable { chooseDay() }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -80,10 +83,12 @@ fun ScheduleGrid(t: Timetable, courses: List<Course>, week: Int, modifier: Modif
                             val group = stack.front.periods
                             val key = "${c.id}:${group.first()}"
                             val active = dragging == key
-                            val phase = coursePhase(t, week, day, group, clock)
+                            val frontHoliday = holiday || (week > 0 && holidayKey(t, c, date, group) in holidayKeys)
+                            val hasHoliday = holiday || (week > 0 && stack.blocks.any { holidayKey(t, it.course, date, it.periods) in holidayKeys })
+                            val phase = if (frontHoliday) LessonPhase.PAST else coursePhase(t, week, day, group, clock)
                             val fade = phaseAlpha(phase, LocalAppearance.current.pastCourseOpacity)
                             val color = phaseColor(LocalAppearance.current.card(c.name), phase)
-                            val shape = lessonShape(stack.hasMakeup)
+                            val shape = lessonShape(stack.hasMakeup || hasHoliday)
                             fun click() { onStackClick?.invoke(stack.blocks) ?: onClick(c) }
                             Box(Modifier.offset(y = rowHeight * (stack.start - 1)).width(dayWidth).height(rowHeight * (stack.end - stack.start + 1)).padding(1.dp)
                                 .zIndex(if (active) 3f else 1f).graphicsLayer {
@@ -102,11 +107,11 @@ fun ScheduleGrid(t: Timetable, courses: List<Course>, week: Int, modifier: Modif
                                             scope.launch { delay(110); if (valid) onMove(c, group, d, p); dragging = null; dragOffset = Offset.Zero; settling = false }
                                         })
                                 } else Modifier).clickable { click() }) {
-                                Card(Modifier.fillMaxSize().makeupCorner(stack.hasMakeup)
+                                Card(Modifier.fillMaxSize().makeupCorner(stack.hasMakeup, hasHoliday)
                                     .then(if (stack.blocks.any { it.course.id in selectableIds }) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, shape) else Modifier)
                                     .semantics { selected = stack.blocks.any { it.course.id in selectableIds } }, shape = shape,
                                     colors = CardDefaults.cardColors(containerColor = Color(color), contentColor = Color(readableColor(color)))) {
-                                    Column(Modifier.padding(top = if (stack.hasMakeup) 8.dp else 0.dp).padding(horizontal = 2.dp, vertical = 3.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Column(Modifier.padding(top = if (stack.hasMakeup || hasHoliday) 8.dp else 0.dp).padding(horizontal = 2.dp, vertical = 3.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                         Text(c.name, fontSize = 10.sp, lineHeight = 11.sp, fontWeight = FontWeight.SemiBold)
                                         if (display.room && c.room.isNotBlank()) Text(roomLabel(c.room), fontSize = 8.sp, lineHeight = 9.sp)
                                         if (display.teacher && c.teacher.isNotBlank()) Text(c.teacher, fontSize = 8.sp, lineHeight = 9.sp)

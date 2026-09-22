@@ -24,11 +24,13 @@ internal fun ongoingLines(item: Occurrence, current: Boolean, now: ZonedDateTime
     return first to second
 }
 fun occurrenceKey(item: Occurrence) = "${item.course.id}:${item.start.toInstant().toEpochMilli()}"
-data class AlertPlan(val today: List<Occurrence>, val due: List<Occurrence>, val next: ZonedDateTime)
-fun alertPlan(t: Timetable?, courses: List<Course>, options: AlertOptions, now: ZonedDateTime, mutedNames: Set<String> = emptySet()): AlertPlan {
+data class AlertPlan(val today: List<Occurrence>, val due: List<Occurrence>, val next: ZonedDateTime, val holiday: Boolean = false)
+fun alertPlan(t: Timetable?, courses: List<Course>, options: AlertOptions, now: ZonedDateTime, mutedNames: Set<String> = emptySet(), holidayDates: Set<java.time.LocalDate> = emptySet(), holidayKeys: Set<String> = emptySet()): AlertPlan {
     val local = now.withZoneSameInstant(schoolZone)
     val day = local.toLocalDate()
-    val all = if (t == null) emptyList() else todayLessons(t, courses, day)
+    val original = if (t == null) emptyList() else todayLessons(t, courses, day)
+    val all = if (day in holidayDates) emptyList() else original.filterNot { occurrenceKey(it) in holidayKeys }
+    val holiday = t != null && all.isEmpty()
     val due = if (!options.reminders) emptyList() else all.filter { it.course.name !in mutedNames && !local.isBefore(it.start.minusMinutes(options.minutes.toLong())) && local.isBefore(it.start) }
     val boundaries = buildList {
         add(day.plusDays(1).atStartOfDay(schoolZone))
@@ -37,7 +39,7 @@ fun alertPlan(t: Timetable?, courses: List<Course>, options: AlertOptions, now: 
             if (options.reminders && it.course.name !in mutedNames) add(it.start.minusMinutes(options.minutes.toLong()))
         }
     }
-    return AlertPlan(all, due, boundaries.filter { it.isAfter(local) }.minOrNull()!!)
+    return AlertPlan(all, due, boundaries.filter { it.isAfter(local) }.minOrNull()!!, holiday)
 }
 fun reminderText(item: Occurrence, options: AlertOptions): String = listOfNotNull(
     item.course.name.takeIf { options.name },
