@@ -98,7 +98,7 @@ object PngExport {
         val margin = 60f
         val paint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+                typeface = AppFonts.typeface(context) ?: Typeface.create("sans-serif", Typeface.NORMAL)
             }
         data class Line(val text: String, val size: Float)
         data class Card(val course: Course, val lines: List<Line>) {

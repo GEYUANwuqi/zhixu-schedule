@@ -64,7 +64,8 @@ class MainActivity : ComponentActivity() {
             val appearance = remember(themeColor, appearanceVersion, backupRevision) { SchedulePreferences(this@MainActivity).appearance() }
             CompositionLocalProvider(LocalAppearance provides appearance) {
             MaterialTheme(
-                colorScheme = appearance.scheme()
+                colorScheme = appearance.scheme(),
+                typography = remember(appearanceVersion, backupRevision) { AppFonts.typography(this@MainActivity) }
             ) {
                 if (consented) {
                     StartupUpdateCheck()

@@ -118,7 +118,7 @@ fun ScheduleGrid(t: Timetable, courses: List<Course>, week: Int, modifier: Modif
                                 // Decoration only: an expanded badge touch target used to overlap
                                 // the weekday header and intercept whole-day selection.
                                 if (stack.blocks.size > 1) Surface(Modifier.align(Alignment.TopEnd).padding(2.dp).size(minOf(10.dp, dayWidth / 3)), shape = CircleShape, color = MaterialTheme.colorScheme.primary) {
-                                    Box(contentAlignment = Alignment.Center) { Text("${stack.blocks.size}", fontSize = if (stack.blocks.size < 10) 7.sp else 5.sp, lineHeight = 8.sp, style = androidx.compose.ui.text.TextStyle(platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false))) }
+                                    Box(contentAlignment = Alignment.Center) { Text("${stack.blocks.size}", fontSize = if (stack.blocks.size < 10) 7.sp else 5.sp, lineHeight = 8.sp, style = MaterialTheme.typography.labelSmall.copy(platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false))) }
                                 }
                             }
                         }

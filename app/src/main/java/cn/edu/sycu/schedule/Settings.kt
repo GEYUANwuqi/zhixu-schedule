@@ -163,6 +163,7 @@ fun ScheduleSettings(
                 }
                 "个性化" -> {
                     SettingsSection("配色", "整套主题与单独课程颜色。")
+                    FontSettings(onAppearance)
                     OutlinedButton(onClick = { section = "主题色" }) { Text("主题色") }
                     OutlinedButton(onClick = { section = "课程卡片颜色" }) { Text("课程卡片颜色") }
                     SettingsSection("课程状态", "调整已结束课程的显示强度。")
