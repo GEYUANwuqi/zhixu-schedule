@@ -106,7 +106,7 @@ fun ScheduleSettings(
                     listOf(
                         "课表与数据" to listOf("课表管理" to "选择课表、管理课程与卡片显示", "学校同步" to "登录、同步与课程修改规则", "导出与日历" to "JSON、课表图片与系统日历"),
                         "外观与桌面" to listOf("个性化" to "主题、课程配色、透明度与背景", "桌面小组件" to "尺寸、预览与添加到桌面"),
-                        "应用" to listOf("权限管理" to "通知、准时提醒、后台运行与日历权限", "状态栏与通知" to "今日课程常驻通知与上课前提醒", "关于" to "版本、更新、隐私与许可证"),
+                        "应用" to listOf("权限管理" to "通知、准时提醒、后台运行与日历权限", "通知与提醒" to "今日课程常驻通知与上课前提醒", "关于" to "版本、更新、隐私与许可证"),
                     ).forEach { (group, entries) ->
                         SettingsSection(group)
                         entries.forEach { (title, description) ->
@@ -127,7 +127,7 @@ fun ScheduleSettings(
                 }
                 "关于" -> AboutPage()
                 "权限管理" -> PermissionsPage()
-                "状态栏与通知" -> NotificationSettingsPage(table, courses) { section = "权限管理" }
+                "通知与提醒" -> NotificationSettingsPage(table, courses) { section = "权限管理" }
                 "课表管理" -> {
                     SettingsSection("我的课表", "选择当前课表，或编辑学期与开学日期。")
                     if (tables.isEmpty()) Text("暂无课表，可以新建或前往学校同步。", style = MaterialTheme.typography.bodyMedium)
@@ -163,8 +163,8 @@ fun ScheduleSettings(
                     ThemeChoices(themeColor, onThemeColor)
                 }
                 "个性化" -> {
-                    SettingsSection("配色", "整套主题与单独课程颜色。")
                     FontSettings(onAppearance)
+                    SettingsSection("配色", "整套主题与单独课程颜色。")
                     OutlinedButton(onClick = { section = "主题色" }) { Text("主题色") }
                     OutlinedButton(onClick = { section = "课程卡片颜色" }) { Text("课程卡片颜色") }
                     SettingsSection("课程状态", "调整已结束课程的显示强度。")
