@@ -62,6 +62,7 @@ fun roomLabel(room: String): String {
         mapOf(
             "J" to "经管楼",
             "G" to "建工楼",
+            "D" to "机电楼",
             "N" to "南楼",
             "X" to "西山会所",
             "L" to "工训楼",
