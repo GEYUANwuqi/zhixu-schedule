@@ -53,7 +53,7 @@ internal fun BackupSettings(enabled: Boolean) {
             finally { busy = false }
         }
     }
-    SettingsSection("完整备份与恢复", "包含全部课表和课程、同步规则及顺序、主题与课程颜色、显示、小组件和通知设置。")
+    SettingsSection("完整备份与恢复", "包含全部课表和课程、放假标记、同步规则及顺序、主题与课程颜色、显示、小组件和通知设置。")
     Text("不包含应用背景、小组件背景、学校登录凭证和认证状态。恢复时保留本机背景与登录状态；不会修改已导出的文件和系统日历。", style = MaterialTheme.typography.bodySmall)
     OutlinedButton(enabled = enabled && !busy, onClick = { naming = true }) { Text("导出完整备份") }
     OutlinedButton(enabled = enabled && !busy, onClick = { reader.launch(arrayOf("application/json", "text/*", "application/octet-stream")) }) { Text("从备份恢复") }

@@ -33,9 +33,10 @@ internal object BackupCodec {
         "display" -> key in displayBooleans + displayInts + displayStrings
         "course-alerts" -> key in alertBooleans || key == "minutes" || key.startsWith("muted-names:")
         "widget-days" -> key == "offset"
+        "holidays" -> key.isNotBlank() && key.length <= 264
         else -> false
     }
-    val groups = listOf("display", "course-alerts", "widget-days")
+    val groups = listOf("display", "course-alerts", "widget-days", "holidays")
     fun read(input: InputStream): AppBackup {
         val output = java.io.ByteArrayOutputStream()
         val buffer = ByteArray(8192)
@@ -92,13 +93,28 @@ internal object BackupCodec {
             }
             require(courseIds.size <= 10000)
             val preferences = root.getJSONObject("preferences")
-            require(preferences.keys().asSequence().toSet() == groups.toSet())
+            val present = preferences.keys().asSequence().toSet()
+            require(present == groups.toSet() || present == groups.toSet() - "holidays")
+            // Older full backups predate rest states. Restoring one must clear local marks.
+            if (!preferences.has("holidays")) preferences.put("holidays", JSONObject())
             groups.forEach { group ->
                 val values = preferences.getJSONObject(group)
                 values.keys().forEach { key ->
                     require(allowed(group, key))
                     val value = values.get(key)
                     when {
+                        group == "holidays" -> {
+                            require(value is JSONArray && value.length() <= 100000)
+                            for (n in 0 until value.length()) {
+                                val mark = value.get(n)
+                                require(mark is String && mark.length <= 512)
+                                if (key.startsWith("lessons:")) {
+                                    require(key.removePrefix("lessons:").isNotBlank())
+                                    require(mark.substringBeforeLast(':', "").isNotBlank())
+                                    requireNotNull(mark.substringAfterLast(':').toLongOrNull())
+                                } else java.time.LocalDate.parse(mark)
+                            }
+                        }
                         group == "display" && key in displayBooleans || group == "course-alerts" && key in alertBooleans -> require(value is Boolean)
                         group == "display" && key in displayInts || key == "minutes" || key == "offset" -> {
                             require(value is Int)

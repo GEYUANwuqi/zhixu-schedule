@@ -8,6 +8,20 @@ import org.junit.Test
 import java.io.ByteArrayInputStream
 
 class BackupTest {
+    @Test fun restStatesRoundTripAndOlderBackupsDefaultToEmpty() {
+        val original = sample()
+        val marks = JSONObject().put("lessons:table", JSONArray(listOf("course:1790000000000", "makeup:id:2026-09-22:1790000000001")))
+            .put("table", JSONArray(listOf("2026-09-22")))
+        original.preferences.put("holidays", marks)
+        val restored = BackupCodec.decode(BackupCodec.encode(original))
+        assertEquals(marks.toString(), restored.preferences.getJSONObject("holidays").toString())
+        assertEquals(original.schedules, restored.schedules)
+        val older = JSONObject(BackupCodec.encode(original))
+        older.getJSONObject("preferences").remove("holidays")
+        assertEquals(0, BackupCodec.decode(older.toString()).preferences.getJSONObject("holidays").length())
+        invalid { it.getJSONObject("preferences").put("holidays", JSONObject().put("lessons:table", JSONArray(listOf("course:invalid")))) }
+        invalid { it.getJSONObject("preferences").put("holidays", JSONObject().put("table", JSONArray(listOf("not-a-date")))) }
+    }
     private fun sample(): AppBackup {
         val t = Timetable(id = "table", start = "2026-08-24")
         val other = Timetable(id = "other", name = "另一个课表")
