@@ -68,7 +68,7 @@ fun ScheduleSettings(
     addCourse: () -> Unit,
     sync: () -> Unit,
     calendar: () -> Unit,
-    png: () -> Unit,
+    png: (String) -> Unit,
     exportJson: () -> Unit,
     importJson: () -> Unit,
     clear: () -> Unit,
@@ -223,9 +223,11 @@ fun ScheduleSettings(
                     OutlinedButton(enabled = table != null && !busy, onClick = calendar) {
                         Text("导入系统日历")
                     }
-                    SettingsSection("课表图片", "生成单双周分表 PNG，通过系统分享。")
-                    OutlinedButton(enabled = table != null && !busy, onClick = png) {
-                        Text("导出 / 分享 PNG")
+                    SettingsSection("课表文件", "导出单双周课表，不包含补课。Excel 可编辑；PDF 保留图片版布局，可缩放查看或打印。通过系统分享保存。")
+                    listOf("PNG", "Excel", "PDF").forEach { format ->
+                    OutlinedButton(enabled = table != null && !busy, onClick = { png(format) }) {
+                        Text("导出 / 分享 $format")
+                    }
                     }
                 }
                 "桌面小组件" -> {

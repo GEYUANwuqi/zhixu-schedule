@@ -411,16 +411,17 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}, onAppearanc
                                         )
                                     )
                                 },
-                                png = {
+                                png = { format ->
                                     table?.let { t ->
                                         val snapshot = courses
                                         task {
                                             val file =
                                                 withContext(Dispatchers.Default) {
-                                                    PngExport.write(context, t, snapshot)
+                                                    if (format == "Excel") ExcelExport.write(context, t, snapshot)
+                                                    else PngExport.write(context, t, snapshot, pdf = format == "PDF")
                                                 }
                                             PngExport.share(context, file)
-                                            "PNG 已生成"
+                                            "$format 已生成"
                                         }
                                     }
                                 },

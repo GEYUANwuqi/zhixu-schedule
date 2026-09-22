@@ -13,6 +13,18 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class DeviceTest {
+    @Test
+    fun pdfExportOpensWithFullLayout() {
+        val t = Timetable(id = "pdf-test", start = "2026-08-24")
+        val c = Course(timetableId = t.id, name = "示例数学", room = "B101", periods = "5,6")
+        val file = PngExport.write(context, t, listOf(c), pdf = true)
+        try {
+            android.graphics.pdf.PdfRenderer(android.os.ParcelFileDescriptor.open(file, android.os.ParcelFileDescriptor.MODE_READ_ONLY)).use { renderer ->
+                assertEquals(1, renderer.pageCount)
+                renderer.openPage(0).use { page -> assertEquals(900, page.width); assertTrue(page.height > 700) }
+            }
+        } finally { file.delete() }
+    }
     @get:Rule
     val calendarPermission =
         androidx.test.rule.GrantPermissionRule.grant(

@@ -92,7 +92,7 @@ object CalendarExport {
 
 object PngExport {
     internal fun regularCourses(t: Timetable, courses: List<Course>) = courses.filter { !it.deleted && !it.isMakeup && it.timetableId == t.id }
-    fun write(context: Context, t: Timetable, courses: List<Course>): File {
+    fun write(context: Context, t: Timetable, courses: List<Course>, pdf: Boolean = false): File {
         val width = 1800
         val column = 238f
         val margin = 60f
@@ -151,8 +151,11 @@ object PngExport {
         val heights = rowHeights.map { it.sum() + 110 }
         val height = (190 + heights.sum() + 80).toInt()
         require(height <= 16000) { "课表太大，无法导出单张图片" }
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
+        val document = if (pdf) android.graphics.pdf.PdfDocument() else null
+        val bitmap = if (pdf) null else Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        try {
+        val page = document?.startPage(android.graphics.pdf.PdfDocument.PageInfo.Builder(width / 2, (height + 1) / 2, 1).create())
+        val canvas = page?.canvas?.apply { scale(.5f, .5f) } ?: Canvas(requireNotNull(bitmap))
         val appearance = SchedulePreferences(context).appearance()
         canvas.drawColor(appearance.background)
         fun text(value: String, x: Float, y: Float, size: Float, color: Int = appearance.ink) {
@@ -193,15 +196,15 @@ object PngExport {
         }
         text("${today()} · 起止时间以学校安排为准", margin, height - 30f, 22f)
         val dir = File(context.cacheDir, "exports").apply { mkdirs() }
-        val file = File(dir, "timetable.png")
+        val file = File(dir, "timetable-${java.util.UUID.randomUUID()}.${if (pdf) "pdf" else "png"}")
         try {
             file.outputStream().use {
-                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) { "图片写入失败" }
+                if (document != null) { document.finishPage(requireNotNull(page)); document.writeTo(it) }
+                else check(requireNotNull(bitmap).compress(Bitmap.CompressFormat.PNG, 100, it)) { "图片写入失败" }
             }
-        } finally {
-            bitmap.recycle()
-        }
+        } catch (e: Exception) { file.delete(); throw e }
         return file
+        } finally { bitmap?.recycle(); document?.close() }
     }
 
     fun share(context: Context, file: File) {
@@ -209,12 +212,12 @@ object PngExport {
         context.startActivity(
             Intent.createChooser(
                 Intent(Intent.ACTION_SEND).apply {
-                    type = "image/png"
+                    type = when (file.extension) { "pdf" -> "application/pdf"; "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"; else -> "image/png" }
                     putExtra(Intent.EXTRA_STREAM, uri)
                     clipData = ClipData.newRawUri("课表", uri)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 },
-                "分享课表 PNG",
+                "分享课表 ${file.extension.uppercase()}",
             )
         )
     }
