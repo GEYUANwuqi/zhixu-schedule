@@ -5,5 +5,6 @@
  <TextView android:id="@+id/widget_course" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="16sp" android:textStyle="bold" android:textColor="#293b2b"/>
  <TextView android:id="@+id/widget_location" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="#667161"/>
 </LinearLayout>
+ <ImageView android:id="@+id/widget_current_glow" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:src="@drawable/widget_current_glow" android:visibility="gone" android:importantForAccessibility="no" />
  <ImageView android:id="@+id/widget_makeup_corner" android:layout_width="11dp" android:layout_height="11dp" android:layout_gravity="top|left" android:src="@drawable/makeup_corner" android:visibility="gone" android:contentDescription="补课" />
 </FrameLayout>

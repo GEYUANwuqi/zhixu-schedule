@@ -264,6 +264,8 @@ class TodayFactory(private val context: Context) : RemoteViewsService.RemoteView
                 setInt(R.id.widget_row, "setBackgroundResource", if (item.course.isMakeup) R.drawable.widget_makeup_background else R.drawable.widget_course_background)
                 setViewVisibility(R.id.widget_makeup_corner, if (item.course.isMakeup) android.view.View.VISIBLE else android.view.View.GONE)
                 val appearance = SchedulePreferences(context).appearance()
+                setViewVisibility(R.id.widget_current_glow, if (phase == LessonPhase.CURRENT) android.view.View.VISIBLE else android.view.View.GONE)
+                setInt(R.id.widget_current_glow, "setColorFilter", appearance.seed)
                 val background = phaseColor(appearance.card(item.course.name), phase)
                 val fade = phaseAlpha(phase, appearance.pastCourseOpacity)
                 setInt(R.id.widget_makeup_corner, "setImageAlpha", (255 * fade).toInt())

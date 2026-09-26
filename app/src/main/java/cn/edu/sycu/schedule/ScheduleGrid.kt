@@ -108,6 +108,7 @@ fun ScheduleGrid(t: Timetable, courses: List<Course>, week: Int, modifier: Modif
                                         })
                                 } else Modifier).clickable { click() }) {
                                 Card(Modifier.fillMaxSize().makeupCorner(stack.hasMakeup, hasHoliday)
+                                    .currentGlow(phase == LessonPhase.CURRENT, MaterialTheme.colorScheme.primary, shape)
                                     .then(if (stack.blocks.any { it.course.id in selectableIds }) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, shape) else Modifier)
                                     .semantics { selected = stack.blocks.any { it.course.id in selectableIds } }, shape = shape,
                                     colors = CardDefaults.cardColors(containerColor = Color(color), contentColor = Color(readableColor(color)))) {

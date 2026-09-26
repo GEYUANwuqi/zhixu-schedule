@@ -91,6 +91,7 @@ fun WidgetPreview(
                             .clip(lessonShape(item.course.isMakeup))
                             .background(Color(cardColor).copy(alpha = appearance.opacity / 100f))
                             .makeupCorner(item.course.isMakeup)
+                            .currentGlow(phase == LessonPhase.CURRENT, Color(appearance.seed), lessonShape(item.course.isMakeup))
                             .padding(8.dp)
                     ) {
                         Text(
