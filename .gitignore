@@ -11,6 +11,7 @@
 # Internal engineering material is kept outside the public history.
 /dev/
 /app/src/main/jniLibs/
+AGENTS.md
 
 # Private CI inputs
 *.keystore

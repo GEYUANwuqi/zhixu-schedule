@@ -28,7 +28,7 @@ internal object BackupCodec {
     val displayBooleans = setOf("room", "teacher", "weeks", "periods", "note", "widget_large", "auto_check_updates")
     val displayInts = setOf("theme_color", "widget_opacity", "past_course_opacity")
     val displayStrings = setOf("active_table", "card_colors", "course_rules", "makeup_lessons")
-    val alertBooleans = setOf("ongoing", "reminders", "name", "time", "room", "ongoing_countdown", "ongoing_time", "ongoing_room", "ongoing_teacher")
+    val alertBooleans = setOf("ongoing", "reminders", "end_reminders", "name", "time", "room", "ongoing_countdown", "ongoing_time", "ongoing_room", "ongoing_teacher")
     fun allowed(group: String, key: String) = when (group) {
         "display" -> key in displayBooleans + displayInts + displayStrings
         "course-alerts" -> key in alertBooleans || key == "minutes" || key.startsWith("muted-names:")

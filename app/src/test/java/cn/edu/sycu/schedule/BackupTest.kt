@@ -8,6 +8,14 @@ import org.junit.Test
 import java.io.ByteArrayInputStream
 
 class BackupTest {
+    @Test fun endReminderSettingRoundTripsAndOlderBackupsRemainValid() {
+        val original = sample()
+        original.preferences.getJSONObject("course-alerts").put("end_reminders", true)
+        val restored = BackupCodec.decode(BackupCodec.encode(original))
+        assertTrue(restored.preferences.getJSONObject("course-alerts").getBoolean("end_reminders"))
+        assertFalse(BackupCodec.decode(BackupCodec.encode(sample())).preferences.getJSONObject("course-alerts").has("end_reminders"))
+        invalid { it.getJSONObject("preferences").getJSONObject("course-alerts").put("end_reminders", "true") }
+    }
     @Test fun restStatesRoundTripAndOlderBackupsDefaultToEmpty() {
         val original = sample()
         val marks = JSONObject().put("lessons:table", JSONArray(listOf("course:1790000000000", "makeup:id:2026-09-22:1790000000001")))

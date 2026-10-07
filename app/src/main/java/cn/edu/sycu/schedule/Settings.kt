@@ -106,7 +106,7 @@ fun ScheduleSettings(
                     listOf(
                         "课表与数据" to listOf("课表管理" to "选择课表、管理课程与卡片显示", "学校同步" to "登录、同步与课程修改规则", "导出与日历" to "JSON、课表图片与系统日历"),
                         "外观与桌面" to listOf("个性化" to "主题、课程配色、透明度与背景", "桌面小组件" to "尺寸、预览与添加到桌面"),
-                        "应用" to listOf("权限管理" to "通知、准时提醒、后台运行与日历权限", "通知与提醒" to "今日课程常驻通知与上课前提醒", "关于" to "版本、更新、隐私与许可证"),
+                        "应用" to listOf("权限管理" to "通知、准时提醒、后台运行与日历权限", "通知与提醒" to "今日课程常驻通知、课前与下课提醒", "关于" to "版本、更新、隐私与许可证"),
                     ).forEach { (group, entries) ->
                         SettingsSection(group)
                         entries.forEach { (title, description) ->
@@ -149,7 +149,7 @@ fun ScheduleSettings(
                     SettingsSection("卡片显示", "课程名称始终显示，以下显示偏好应用于所有课表。")
                     DisplaySwitch("地点", display.room) { onDisplay(display.copy(room = it)) }
                     DisplaySwitch("教师", display.teacher) { onDisplay(display.copy(teacher = it)) }
-                    DisplaySwitch("第几周", display.weeks) { onDisplay(display.copy(weeks = it)) }
+                    DisplaySwitch("周数", display.weeks) { onDisplay(display.copy(weeks = it)) }
                     DisplaySwitch("节次", display.periods) { onDisplay(display.copy(periods = it)) }
                     DisplaySwitch("备注", display.note) { onDisplay(display.copy(note = it)) }
                     table?.let {

@@ -38,12 +38,12 @@ internal fun PermissionsPage() {
         catch (_: Exception) { message = "无法打开该系统页面，请在系统设置中进入知序的应用信息。" }
     }
     fun appSettings() = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
-    SettingsSection("通知", "用于今日课程常驻通知和上课前提醒；拒绝不影响课表查看。")
+    SettingsSection("通知", "用于今日课程常驻通知、课前提醒和下课提醒；拒绝不影响课表查看。")
     Text(if (enabled) "应用通知已允许" else "应用通知未允许")
     if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
         OutlinedButton(onClick = { notifications.launch(Manifest.permission.POST_NOTIFICATIONS) }) { Text("申请通知权限") }
     OutlinedButton(onClick = { open(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)) }) { Text("系统通知设置") }
-    SettingsSection("准时提醒", "允许闹钟与提醒后，可按所选的提前时间安排通知；未允许时系统可能延迟提醒。")
+    SettingsSection("准时提醒", "允许闹钟与提醒后，可按所选的提前时间及下课时间安排通知；未允许时系统可能延迟提醒。")
     val exact = remember(revision) { Build.VERSION.SDK_INT < 31 || context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms() }
     Text(if (exact) "精确提醒已可用" else "尚未允许精确提醒")
     if (Build.VERSION.SDK_INT >= 31) OutlinedButton(onClick = { open(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}"))) }) { Text("闹钟与提醒设置") }
@@ -76,16 +76,16 @@ internal fun NotificationSettingsPage(table: Timetable?, courses: List<Course>, 
     Text("使用当前选中的课表，仅显示和提醒实际当天课程。")
     if (!enabled) Text("通知权限未开启，启用下面选项后仍需在权限管理中授权。", color = MaterialTheme.colorScheme.error)
     OutlinedButton(onClick = openPermissions) { Text("权限管理") }
-    SettingsSection("今日课程常驻通知", "显示正在上的课程及剩余时间，或下一节课倒计时；无课与全部结束时显示对应状态。")
+    SettingsSection("今日课程常驻通知", "上课时显示距课间或下课的倒计时，课间显示「课间时间」和距上课的倒计时；无课与全部结束时显示对应状态。")
     AlertSwitch("显示今日课程", options.ongoing) { save(options.copy(ongoing = it)) }
-    Text("常驻通知内容：标题保持不变，第一行显示倒计时和时间，第二行显示教室和教师。", style = MaterialTheme.typography.bodySmall)
+    Text("常驻通知内容：标题显示课程状态，第一行显示倒计时和时间，第二行显示教室和教师。", style = MaterialTheme.typography.bodySmall)
     AlertSwitch("倒计时", options.ongoingCountdown) { save(options.copy(ongoingCountdown = it)) }
     AlertSwitch("上课时间", options.ongoingTime) { save(options.copy(ongoingTime = it)) }
     AlertSwitch("教室", options.ongoingRoom) { save(options.copy(ongoingRoom = it)) }
     AlertSwitch("教师", options.ongoingTeacher) { save(options.copy(ongoingTeacher = it)) }
     Text("仅展示今天，不提供日期切换按钮。部分系统允许划掉常驻通知，课程状态变化或重新打开应用时会更新。", style = MaterialTheme.typography.bodySmall)
-    SettingsSection("上课前提醒")
-    AlertSwitch("开启课程提醒", options.reminders) { save(options.copy(reminders = it)) }
+    SettingsSection("课程提醒")
+    AlertSwitch("开启课前提醒", options.reminders) { save(options.copy(reminders = it)) }
     OutlinedButton(onClick = { minutesText = options.minutes.toString(); editingMinutes = true }) { Text("提前 ${options.minutes} 分钟 · 修改") }
     if (editingMinutes) {
         val minutes = reminderMinutes(minutesText)
@@ -107,11 +107,13 @@ internal fun NotificationSettingsPage(table: Timetable?, courses: List<Course>, 
             dismissButton = { TextButton(onClick = { editingMinutes = false }) { Text("取消") } },
         )
     }
-    SettingsSection("选择提醒课程", "仅对当前课表生效，同名课程共用开关；关闭后不再发送上课前提醒，今日常驻通知仍展示完整安排。新课程默认允许提醒。")
+    AlertSwitch("下课提醒", options.endReminders) { save(options.copy(endReminders = it)) }
+    Text("在课间开始和完整课程结束时发送提醒。", style = MaterialTheme.typography.bodySmall)
+    SettingsSection("选择提醒课程", "仅对当前课表生效，同名课程共用开关；关闭后不再发送课前和下课提醒，今日常驻通知仍展示完整安排。新课程默认允许提醒。")
     if (table == null) Text("暂无课表，请先创建或同步课表。")
     else {
         Text(table.name, style = MaterialTheme.typography.titleSmall)
-        if (!options.reminders) Text("课程提醒总开关未开启，可以先选择需要提醒的课程。", style = MaterialTheme.typography.bodySmall)
+        if (!options.reminders && !options.endReminders) Text("课前和下课提醒均未开启，可以先选择需要提醒的课程。", style = MaterialTheme.typography.bodySmall)
         val names = (courses + MakeupStore.courses(context, table)).filter { it.timetableId == table.id && !it.deleted }.map { it.name }.distinct().sorted()
         if (names.isEmpty()) Text("当前课表暂无课程。")
         names.forEach { name ->
@@ -122,12 +124,12 @@ internal fun NotificationSettingsPage(table: Timetable?, courses: List<Course>, 
             }
         }
     }
-    SettingsSection("提醒内容", "可自由选择；全部关闭时仅提示即将上课。通知可能在锁屏显示，请按需设置系统通知隐私。")
+    SettingsSection("提醒内容", "用于课前和下课提醒；全部关闭时仅提示即将上课、课间休息或课程结束。通知可能在锁屏显示，请按需设置系统通知隐私。")
     AlertSwitch("课程名称", options.name) { save(options.copy(name = it)) }
     AlertSwitch("上课时间", options.time) { save(options.copy(time = it)) }
     AlertSwitch("教室", options.room) { save(options.copy(room = it)) }
     SettingsSection("通知通道", "若应用通知已允许但仍未收到提醒，请检查通道是否被单独关闭。")
-    listOf(CourseAlerts.STATUS_CHANNEL to "今日课程安排", CourseAlerts.REMINDER_CHANNEL to "上课前提醒").forEach { (id, label) ->
+    listOf(CourseAlerts.STATUS_CHANNEL to "今日课程安排", CourseAlerts.REMINDER_CHANNEL to "课程提醒").forEach { (id, label) ->
         val allowed = remember(revision) { context.getSystemService(NotificationManager::class.java).getNotificationChannel(id)?.importance != NotificationManager.IMPORTANCE_NONE }
         Text("$label：${if (allowed) "通道可用" else "通道已关闭"}", style = MaterialTheme.typography.bodySmall)
         TextButton(onClick = {
