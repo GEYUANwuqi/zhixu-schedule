@@ -112,7 +112,8 @@ fun ScheduleGrid(t: Timetable, courses: List<Course>, week: Int, modifier: Modif
                                     .then(if (stack.blocks.any { it.course.id in selectableIds }) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, shape) else Modifier)
                                     .semantics { selected = stack.blocks.any { it.course.id in selectableIds } }, shape = shape,
                                     colors = CardDefaults.cardColors(containerColor = Color(color), contentColor = Color(readableColor(color)))) {
-                                    Column(Modifier.padding(top = if (stack.hasMakeup || hasHoliday) 8.dp else 0.dp).padding(horizontal = 2.dp, vertical = 3.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    // Reserve corner-marker space on every card to keep course text aligned.
+                                    Column(Modifier.padding(top = 8.dp).padding(horizontal = 2.dp, vertical = 3.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                         Text(c.name, fontSize = 10.sp, lineHeight = 11.sp, fontWeight = FontWeight.SemiBold)
                                         if (display.room && c.room.isNotBlank()) Text(roomLabel(c.room), fontSize = 8.sp, lineHeight = 9.sp)
                                         if (display.teacher && c.teacher.isNotBlank()) Text(c.teacher, fontSize = 8.sp, lineHeight = 9.sp)
