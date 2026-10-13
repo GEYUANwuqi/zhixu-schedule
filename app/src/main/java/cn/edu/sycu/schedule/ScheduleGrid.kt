@@ -17,7 +17,12 @@ import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import java.time.Duration
 import java.time.LocalDate
+import java.time.ZonedDateTime
 import kotlinx.coroutines.*
 import kotlin.math.roundToInt
 
@@ -27,17 +32,27 @@ fun ScheduleGrid(t: Timetable, courses: List<Course>, week: Int, modifier: Modif
     onMove: (Course, List<Int>, Int, Int) -> Unit = { _, _, _, _ -> }, selectableIds: Set<String> = emptySet(),
     selectionMode: Boolean = false, onDaySelect: (Int) -> Unit = {}, selectedDate: LocalDate? = null,
     selectedDates: Set<LocalDate> = emptySet(), holidayDates: Set<LocalDate> = emptySet(),
-    holidayKeys: Set<String> = emptySet(),
+    holidayKeys: Set<String> = emptySet(), showCurrentTime: Boolean = false,
     onStackClick: ((List<LessonBlock>) -> Unit)? = null, onClick: (Course) -> Unit,
 ) {
     var selectedDay by remember { mutableStateOf<Int?>(null) }
     var selectedPeriod by remember { mutableStateOf<Int?>(null) }
-    var clock by remember { mutableStateOf(java.time.ZonedDateTime.now(schoolZone)) }
-    LaunchedEffect(Unit) { while (isActive) { clock = java.time.ZonedDateTime.now(schoolZone); delay(1000) } }
+    var clock by remember { mutableStateOf(ZonedDateTime.now(schoolZone)) }
+    val owner = LocalLifecycleOwner.current
+    LaunchedEffect(owner) {
+        owner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (isActive) {
+                clock = ZonedDateTime.now(schoolZone)
+                val nextMinute = clock.withSecond(0).withNano(0).plusMinutes(1)
+                delay(Duration.between(clock, nextMinute).toMillis().coerceAtLeast(1))
+            }
+        }
+    }
     val visible = courses.filter { !it.deleted && (week == 0 || week in it.weekList()) }
     val stacks = remember(visible) { lessonStacks(visible) }
     val times = timesFor(t)
     val maxPeriod = maxOf(10, visible.maxOfOrNull { it.periodList().max() } ?: 10)
+    val timeColor = MaterialTheme.colorScheme.primary
     val scope = rememberCoroutineScope()
     var dragging by remember { mutableStateOf<String?>(null) }
     var dragOffset by remember { mutableStateOf(Offset.Zero) }
@@ -65,6 +80,14 @@ fun ScheduleGrid(t: Timetable, courses: List<Course>, week: Int, modifier: Modif
             for (day in 1..7) {
                 val date = firstWeekMonday(t).plusDays(((week - 1) * 7 + day - 1).toLong())
                 val holiday = week > 0 && date in holidayDates
+                val timeRow = if (showCurrentTime && !selectionMode && week > 0 && date == clock.toLocalDate()) {
+                    val classPeriods = if (holiday) emptySet() else stacks
+                        .filter { it.front.course.weekday == day }
+                        .flatMap { it.blocks }
+                        .filterNot { holidayKey(t, it.course, date, it.periods) in holidayKeys }
+                        .flatMap { it.periods }.toSet()
+                    currentTimeRow(times.take(maxPeriod), clock.toLocalTime().withSecond(0).withNano(0), classPeriods)
+                } else null
                 val highlight = (week > 0 && date == currentDate) || if (selectionMode) date == selectedDate || date in selectedDates else selectedDay == day
                 fun chooseDay() { if (selectionMode) onDaySelect(day) else selectedDay = if (selectedDay == day) null else day }
                 Column(Modifier.width(dayWidth).semantics { contentDescription = "星期$day"; selected = highlight }) {
@@ -127,6 +150,14 @@ fun ScheduleGrid(t: Timetable, courses: List<Course>, week: Int, modifier: Modif
                                 if (stack.blocks.size > 1) Surface(Modifier.align(Alignment.TopEnd).padding(2.dp).size(minOf(10.dp, dayWidth / 3)), shape = CircleShape, color = MaterialTheme.colorScheme.primary) {
                                     Box(contentAlignment = Alignment.Center) { Text("${stack.blocks.size}", fontSize = if (stack.blocks.size < 10) 7.sp else 5.sp, lineHeight = 8.sp, style = MaterialTheme.typography.labelSmall.copy(platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false))) }
                                 }
+                            }
+                        }
+                        if (timeRow != null) {
+                            Canvas(Modifier.matchParentSize().zIndex(4f).semantics {
+                                contentDescription = "当前时间 ${clock.toLocalTime().withSecond(0).withNano(0)}"
+                            }) {
+                                val y = (rowHeight * timeRow).toPx().coerceIn(1.dp.toPx(), size.height - 1.dp.toPx())
+                                drawLine(timeColor, Offset(2.dp.toPx(), y), Offset(size.width - 2.dp.toPx(), y), strokeWidth = 2.dp.toPx())
                             }
                         }
                     }

@@ -569,6 +569,7 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}, onAppearanc
                                     display,
                                     holidayDates = holidayDates,
                                     holidayKeys = holidayKeys,
+                                    showCurrentTime = true,
                                     onStackClick = {
                                         if (android.os.Build.VERSION.SDK_INT < 31) backdrop = runCatching { blurredBackdrop(view) }.getOrNull()
                                         detail = it
