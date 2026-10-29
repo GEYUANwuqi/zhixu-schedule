@@ -16,6 +16,9 @@ internal object HolidayStore {
     fun dates(context: Context, tableId: String): Set<LocalDate> = context.getSharedPreferences("holidays", 0)
         .getStringSet(tableId, emptySet())!!.mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }.toSet()
     fun keys(context: Context, tableId: String): Set<String> = context.getSharedPreferences("holidays", 0).getStringSet("lessons:$tableId", emptySet())!!.toSet()
+    fun replaceKeys(context: Context, tableId: String, keys: Set<String>) {
+        check(context.getSharedPreferences("holidays", 0).edit().putStringSet("lessons:$tableId", keys).commit())
+    }
     fun save(context: Context, tableId: String, keys: Set<String>) {
         check(context.getSharedPreferences("holidays", 0).edit().remove(tableId).putStringSet("lessons:$tableId", keys).commit())
         revision.intValue++

@@ -403,6 +403,12 @@ fun App(openTodayVersion: Int = 0, onThemeColor: (Int) -> Unit = {}, onAppearanc
                                 },
                                 select = { activeId = it },
                                 edit = { tableEditor = it },
+                                onWinterSchedule = { enabled ->
+                                    table?.let { t -> task {
+                                        db.setWinterSchedule(context, t, enabled)
+                                        ""
+                                    } }
+                                },
                                 addCourse = {
                                     table?.let { courseEditor = Course(timetableId = it.id) }
                                 },

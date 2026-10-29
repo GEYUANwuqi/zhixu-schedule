@@ -42,4 +42,15 @@ class JsonTransferTest {
     @Test fun oversizedInputRejected() {
         assertThrows(IllegalArgumentException::class.java) { JsonTransfer.read(ByteArray(2 * 1024 * 1024 + 1).inputStream()) }
     }
+
+    @Test fun winterSettingRoundTripsAndOldFilesDefaultToOriginalTimes() {
+        val enabled = table.copy(winterSchedule = true)
+        val parsed = JsonTransfer.decode(JsonTransfer.encode(enabled, listOf(course)))
+        assertEquals(enabled.copy(id = parsed.table.id), parsed.table)
+        val old = JSONObject(encoded())
+        old.getJSONObject("timetable").remove("winterSchedule")
+        assertFalse(JsonTransfer.decode(old.toString()).table.winterSchedule)
+        old.getJSONObject("timetable").put("winterSchedule", "true")
+        assertThrows(IllegalArgumentException::class.java) { JsonTransfer.decode(old.toString()) }
+    }
 }

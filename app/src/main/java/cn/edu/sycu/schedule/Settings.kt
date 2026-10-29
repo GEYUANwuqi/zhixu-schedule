@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -80,6 +81,7 @@ fun ScheduleSettings(
     courseNames: List<String> = emptyList(),
     navigation: SettingsNavigation,
     onAppearance: () -> Unit = {},
+    onWinterSchedule: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val preferences = remember { SchedulePreferences(context) }
@@ -142,6 +144,7 @@ fun ScheduleSettings(
                     table?.let {
                         SettingsSection("当前课表", it.name)
                         Text("开学日期 ${it.start} · ${it.weekCount} 周")
+                        WinterScheduleSwitch(it, busy, onWinterSchedule)
                         OutlinedButton(onClick = addCourse) { Text("手动添加课程") }
                         MakeupManager(it, courses)
                         HolidayManager(it, courses)
@@ -350,6 +353,19 @@ private fun BackgroundCropPreview(image: ImageBitmap, guide: CropGuide, modifier
                     ),
             )
         }
+    }
+}
+
+@Composable
+internal fun WinterScheduleSwitch(table: Timetable, busy: Boolean, change: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("冬季作息")
+            Text("下午第 5 节 13:00 开始，第 8 节 16:30 结束；课表、提醒和倒计时同步切换。",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = table.winterSchedule, onCheckedChange = change, enabled = !busy,
+            modifier = Modifier.semantics { contentDescription = "冬季作息" })
     }
 }
 

@@ -34,6 +34,7 @@ object JsonTransfer {
         val table = JSONObject().put("name", t.name).put("year", t.year)
             .put("semester", t.semester).put("start", t.start).put("weekCount", t.weekCount)
             .put("times", if (t.times.isBlank()) JSONArray() else JSONArray(t.times))
+            .put("winterSchedule", t.winterSchedule)
         val text = JSONObject().put("format", "zhixu-schedule").put("version", 1)
             .put("timetable", table).put("courses", rows).toString(2)
         require(text.toByteArray(Charsets.UTF_8).size <= LIMIT) { "课表过大，无法导出 JSON" }
@@ -59,7 +60,8 @@ object JsonTransfer {
             }
             val t = Timetable(name = string(r, "name", 120), year = integer(r, "year"),
                 semester = integer(r, "semester"), start = string(r, "start", 10),
-                weekCount = integer(r, "weekCount"), times = if (times.length() == 0) "" else times.toString())
+                weekCount = integer(r, "weekCount"), times = if (times.length() == 0) "" else times.toString(),
+                winterSchedule = if (r.has("winterSchedule")) (r.get("winterSchedule") as Boolean) else false)
             require(t.name.isNotBlank() && t.year in 1900..9999 && t.semester in 1..2 && t.weekCount in 1..64)
             require(LocalDate.parse(t.start).year in 1900..9999)
             val rows = root.getJSONArray("courses")

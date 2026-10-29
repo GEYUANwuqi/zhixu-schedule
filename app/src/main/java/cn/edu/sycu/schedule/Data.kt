@@ -2,6 +2,8 @@ package cn.edu.sycu.schedule
 
 import android.content.Context
 import androidx.room.*
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import java.time.*
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -17,6 +19,7 @@ data class Timetable(
     val start: String = "${today().year}-08-24",
     val weekCount: Int = 20,
     val times: String = "",
+    @ColumnInfo(defaultValue = "0") val winterSchedule: Boolean = false,
 )
 
 @Entity(indices = [Index("timetableId")])
@@ -106,6 +109,7 @@ val lessonTimes =
     )
 
 fun timesFor(t: Timetable): List<Pair<String, String>> {
+    if (t.winterSchedule) return winterLessonTimes + timesFor(t.copy(winterSchedule = false)).drop(10)
     if (t.times.isBlank()) return lessonTimes
     val array = org.json.JSONArray(t.times)
     val map =
@@ -250,13 +254,18 @@ abstract class ScheduleDao {
     }
 }
 
-@Database(entities = [Timetable::class, Course::class], version = 1, exportSchema = false)
+@Database(entities = [Timetable::class, Course::class], version = 2, exportSchema = false)
 abstract class ScheduleDb : RoomDatabase() {
     abstract fun dao(): ScheduleDao
 
     companion object {
+        private val migration1To2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE Timetable ADD COLUMN winterSchedule INTEGER NOT NULL DEFAULT 0")
+            }
+        }
         fun open(c: Context) =
-            Room.databaseBuilder(c, ScheduleDb::class.java, "schedule.db").build()
+            Room.databaseBuilder(c, ScheduleDb::class.java, "schedule.db").addMigrations(migration1To2).build()
     }
 }
 

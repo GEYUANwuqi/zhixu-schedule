@@ -27,7 +27,7 @@ class DataCompatibilityTest {
         assertTrue(android.os.Build.VERSION.SDK_INT in setOf(26, 35))
         context = RuntimeEnvironment.getApplication()
         context.deleteDatabase("schedule.db")
-        listOf("display", "widget-days", "course-alerts").forEach { context.deleteSharedPreferences(it) }
+        listOf("display", "widget-days", "course-alerts", "holidays").forEach { context.deleteSharedPreferences(it) }
     }
     private fun seed(sql: String = fixture("schema-v1.sql")) {
         val path = context.getDatabasePath("schedule.db")
@@ -58,6 +58,7 @@ class DataCompatibilityTest {
                 val autumn = tables.single { it.id == "autumn" }
                 assertEquals("2026-08-24", autumn.start)
                 assertEquals(20, autumn.weekCount)
+                assertFalse(autumn.winterSchedule)
                 val courses = db.dao().allCourses(autumn.id)
                 assertEquals(2, courses.size)
                 val manual = courses.single { it.id == "manual" }
@@ -115,6 +116,30 @@ class DataCompatibilityTest {
         assertEquals("数学", data.courses.single().name)
         assertEquals(listOf(4, 6), data.courses.single().weekList())
         assertEquals("A320", RuleTransfer.decode(fixture("rules-v1.json")).single().room)
+    }
+    @Test fun winterSelectionPersistsAfterMigratingReleasedDatabase() = runBlocking {
+        seed()
+        var db = ScheduleDb.open(context)
+        val original = db.dao().findTable("autumn")!!
+        val afternoon = Course(id = "afternoon", timetableId = original.id, name = "下午课程", periods = "5,6", weeks = "4")
+        db.dao().save(afternoon)
+        val courses = db.dao().allCourses("autumn")
+        val oldKey = occurrenceKey(occurrences(original, afternoon).single())
+        HolidayStore.replaceKeys(context, original.id, setOf(oldKey))
+        context.getSharedPreferences("holidays", 0).edit().putStringSet(original.id, setOf("2026-09-15")).commit()
+        try { db.setWinterSchedule(context, original, true) }
+        finally { db.close() }
+        db = ScheduleDb.open(context)
+        try {
+            val updated = db.dao().findTable("autumn")!!
+            assertEquals(original.copy(winterSchedule = true), updated)
+            assertEquals(courses, db.dao().allCourses("autumn"))
+            assertEquals(setOf(occurrenceKey(occurrences(updated, afternoon).single())), HolidayStore.keys(context, original.id))
+            assertEquals(setOf(LocalDate.parse("2026-09-15")), HolidayStore.dates(context, original.id))
+            db.setWinterSchedule(context, updated, false)
+            assertEquals(original, db.dao().findTable("autumn"))
+            assertEquals(setOf(oldKey), HolidayStore.keys(context, original.id))
+        } finally { db.close() }
     }
     @Test fun makeupOverlayNeverWritesOriginalCourseRows() = runBlocking {
         seed(); prefs("v0.1.1")

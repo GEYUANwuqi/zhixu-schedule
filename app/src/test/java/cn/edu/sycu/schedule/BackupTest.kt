@@ -8,6 +8,14 @@ import org.junit.Test
 import java.io.ByteArrayInputStream
 
 class BackupTest {
+    @Test fun winterSettingAndOriginalTimesSurviveFullBackup() {
+        val original = sample()
+        val first = original.schedules.first()
+        val enabled = first.copy(table = first.table.copy(winterSchedule = true, times = """[{"period":5,"start":"13:40","end":"14:25"}]"""))
+        val schedules = listOf(enabled) + original.schedules.drop(1)
+        val restored = BackupCodec.decode(BackupCodec.encode(original.copy(schedules = schedules)))
+        assertEquals(schedules, restored.schedules)
+    }
     @Test fun endReminderSettingRoundTripsAndOlderBackupsRemainValid() {
         val original = sample()
         original.preferences.getJSONObject("course-alerts").put("end_reminders", true)
